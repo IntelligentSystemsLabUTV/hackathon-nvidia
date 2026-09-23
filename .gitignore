@@ -3,6 +3,21 @@ build/*
 install/*
 log/*
 
+# Local Gazebo model collection (large external simulation assets)
+/config/gazebo/
+
+# Imported ROS packages used only by the local Gazebo simulation
+/src/champ/
+/src/champ_base/
+/src/champ_config/
+/src/champ_msgs/
+/src/dottorcane_description/
+/src/go2_description/
+/src/ldc25_sim/
+/src/ros_gz_republish/
+/src/velodyne_description/
+/src/zed_description/
+
 # AgenticROS local state and secrets
 .agenticros/
 .pnpm-store/
@@ -12,6 +27,7 @@ config/agenticros.local.json
 !.env.example
 
 # Python build products
+.venv/
 __pycache__/
 *.py[cod]
 
