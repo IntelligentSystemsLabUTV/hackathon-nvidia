@@ -9,5 +9,13 @@
     "name": "hackathon-nvidia",
     "namespace": "",
     "cameraTopic": "/dottorcane/slam/zed_x_driver/left/image_rect_color"
+  },
+  "teleop": {
+    "cmdVelTopic": "/dottorcane/go2_control/cmd_vel",
+    "speedDefault": 0.15
+  },
+  "safety": {
+    "maxLinearVelocity": 0.25,
+    "maxAngularVelocity": 0.5
   }
 }
