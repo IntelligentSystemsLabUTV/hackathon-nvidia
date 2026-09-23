@@ -1,0 +1,12 @@
+{
+  "transport": {
+    "mode": "local"
+  },
+  "local": {
+    "domainId": 0
+  },
+  "robot": {
+    "name": "hackathon-nvidia",
+    "namespace": ""
+  }
+}

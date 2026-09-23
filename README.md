@@ -4,6 +4,40 @@ GitHub template repositories for projects based on the Distributed Unified Archi
 
 See [`dua-template.md`](dua-template.md) for more information.
 
+## AgenticROS
+
+AgenticROS is pinned as a Git submodule in `tools/agenticros`. Its ROS 2
+packages are exposed to the main DUA workspace by the relative symlink
+`src/agenticros -> ../tools/agenticros/ros2_ws/src`, so a normal build from the
+repository root includes them.
+
+Clone the project together with the submodule:
+
+```bash
+git clone --recurse-submodules https://github.com/ilGalghi/hackathon-nvidia.git
+```
+
+For an existing clone:
+
+```bash
+git submodule update --init --recursive
+```
+
+Rebuild the `container-x86-cudev` devcontainer after cloning. Its post-create
+step runs `bin/setup_agenticros.sh`, which builds the main ROS workspace,
+installs the pinned pnpm dependencies, and builds the AgenticROS packages.
+Inside the container, the same setup can be run again with:
+
+```bash
+agenticros_setup
+agenticros doctor
+```
+
+The default configuration is `config/agenticros.json` and uses local DDS on
+ROS domain 0. Keep machine-specific configuration in
+`config/agenticros.local.json`, which is ignored by Git, and point
+`AGENTICROS_CONFIG_PATH` to it when needed.
+
 ---
 
 ## Copyright and License
