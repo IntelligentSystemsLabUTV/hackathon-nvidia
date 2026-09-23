@@ -14,7 +14,7 @@ repository root includes them.
 Clone the project together with the submodule:
 
 ```bash
-git clone --recurse-submodules https://github.com/ilGalghi/hackathon-nvidia.git
+git clone --recurse-submodules git@github.com:ilGalghi/hackathon-nvidia.git
 ```
 
 For an existing clone:

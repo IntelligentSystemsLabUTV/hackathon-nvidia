@@ -1,3 +1,3 @@
 [submodule "agenticros"]
 	path = tools/agenticros
-	url = https://github.com/ErLex20/agenticros.git
+	url = git@github.com:ErLex20/agenticros.git
