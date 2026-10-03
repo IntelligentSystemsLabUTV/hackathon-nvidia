@@ -1,0 +1,199 @@
+--- a/src/champ_base/src/quadruped_controller.cpp
++++ b/src/champ_base/src/quadruped_controller.cpp
+@@ -26,6 +26,7 @@
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#include <algorithm>
+ #include <quadruped_controller.h>
+ 
+ champ::PhaseGenerator::Time rosTimeToChampTime(const rclcpp::Time& time)
+@@ -65,6 +66,8 @@
+     this->get_parameter("joint_controller_topic",      joint_control_topic);
+     this->get_parameter("loop_rate",                   loop_rate);
+     this->get_parameter("urdf",                        urdf);
++    this->get_parameter("velocity_smoothing.max_linear_accel",  max_linear_accel_);
++    this->get_parameter("velocity_smoothing.max_angular_accel", max_angular_accel_);
+     
+     cmd_vel_subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
+         "cmd_vel/smooth", 10, std::bind(&QuadrupedController::cmdVelCallback_, this,  std::placeholders::_1));
+@@ -92,21 +95,51 @@
+     champ::URDF::loadFromFile(base_, this->get_node_parameters_interface(), urdf);
+     joint_names_ = champ::URDF::getJointNames(this->get_node_parameters_interface());
+     std::chrono::milliseconds period(static_cast<int>(1000/loop_rate));
++    // Each command must be reachable before the next one arrives; a longer
++    // time_from_start makes the Gazebo trajectory controller restart every
++    // cycle without reaching its target (short strides, foot slip).
++    trajectory_time_from_start_ = 1.0 / loop_rate;
++    this->get_parameter("joint_trajectory_time_from_start", trajectory_time_from_start_);
+ 
+     loop_timer_ = this->create_wall_timer(
+          std::chrono::duration_cast<std::chrono::milliseconds>(period), std::bind(&QuadrupedController::controlLoop_, this));
+     req_pose_.position.z = gait_config_.nominal_height;
+ }
+ 
++static double approach(double current, double target, double max_step)
++{
++    if (target > current + max_step) return current + max_step;
++    if (target < current - max_step) return current - max_step;
++    return target;
++}
++
++void QuadrupedController::smoothVelocity_(double dt)
++{
++    // Clamp dt: a paused simulation or a stalled timer must not produce a jump.
++    dt = std::min(std::max(dt, 0.0), 0.05);
++    applied_vel_.linear.x = approach(applied_vel_.linear.x, req_vel_.linear.x, max_linear_accel_ * dt);
++    applied_vel_.linear.y = approach(applied_vel_.linear.y, req_vel_.linear.y, max_linear_accel_ * dt);
++    applied_vel_.angular.z = approach(applied_vel_.angular.z, req_vel_.angular.z, max_angular_accel_ * dt);
++}
++
+ void QuadrupedController::controlLoop_()
+ {
+     float target_joint_positions[12];
+     geometry::Transformation target_foot_positions[4];
+     bool foot_contacts[4];
+ 
++    const rclcpp::Time now = clock_.now();
++    if (has_last_loop_time_) {
++        smoothVelocity_((now - last_loop_time_).seconds());
++    }
++    last_loop_time_ = now;
++    has_last_loop_time_ = true;
++
+     body_controller_.poseCommand(target_foot_positions, req_pose_);
+ 
+-    leg_controller_.velocityCommand(target_foot_positions, req_vel_, rosTimeToChampTime(clock_.now()));
++    // velocityCommand() caps the velocities in place: pass a copy.
++    champ::Velocities gait_vel = applied_vel_;
++    leg_controller_.velocityCommand(target_foot_positions, gait_vel, rosTimeToChampTime(now));
+     kinematics_.inverse(target_joint_positions, target_foot_positions);
+ 
+     publishFootContacts_(foot_contacts);
+@@ -164,7 +197,7 @@
+         trajectory_msgs::msg::JointTrajectoryPoint point;
+         point.positions.resize(12);
+ 
+-        point.time_from_start = rclcpp::Duration::from_seconds(1.0 / 60.0);
++        point.time_from_start = rclcpp::Duration::from_seconds(trajectory_time_from_start_);
+         for(size_t i = 0; i < 12; i++)
+         {
+             point.positions[i] = target_joints[i];
+--- a/src/champ_base/include/quadruped_controller.h
++++ b/src/champ_base/include/quadruped_controller.h
+@@ -66,6 +66,19 @@
+     champ::Velocities req_vel_;
+     champ::Pose req_pose_;
+ 
++    // Velocity actually fed to the gait: follows req_vel_ with bounded
++    // acceleration. Without it a step change in cmd_vel (e.g. 0.25 -> 0) makes
++    // CHAMP snap every foot back to its nominal stance in one control cycle,
++    // and the legs kick the body while in contact: the robot slides.
++    champ::Velocities applied_vel_;
++    rclcpp::Time last_loop_time_;
++    bool has_last_loop_time_ = false;
++    double max_linear_accel_ = 0.5;
++    double max_angular_accel_ = 1.5;
++    double trajectory_time_from_start_ = 0.005;
++
++    void smoothVelocity_(double dt);
++
+     champ::GaitConfig gait_config_;
+ 
+     champ::QuadrupedBase base_;
+--- a/src/champ/include/champ/leg_controller/leg_controller.h
++++ b/src/champ/include/champ/leg_controller/leg_controller.h
+@@ -120,9 +120,56 @@
+                     sum_of_steps += step_lengths[i];
+                 }
+ 
++                // Stopping: resetting the gait while a leg is in the air would command
++                // that foot straight to its nominal stance on the ground in a single
++                // cycle, slamming it down and kicking the body (the robot slides).
++                // When the command drops to zero, keep stepping in place only until
++                // the legs that were in the air at that moment have touched down.
++                // (In a trot one pair is almost always swinging, so waiting for
++                // "no leg in the air" would never end.)
++                if(velocity == 0.0f)
++                {
++                    if(!settling_)
++                    {
++                        settling_ = true;
++                        for(unsigned int i = 0; i < 4; i++)
++                            settle_legs_[i] = phase_generator.swing_phase_signal[i] > 0.0f;
++                    }
++                    bool landing = false;
++                    for(unsigned int i = 0; i < 4; i++)
++                        landing = landing || (settle_legs_[i] && phase_generator.swing_phase_signal[i] > 0.0f);
++
++                    if(landing)
++                    {
++                        const float settle_step = 1e-4f;
++                        velocity = settle_step;
++                        for(unsigned int i = 0; i < 4; i++)
++                        {
++                            if(step_lengths[i] < settle_step)
++                                step_lengths[i] = settle_step;
++                        }
++                        sum_of_steps = settle_step * 4.0f;
++                    }
++                }
++                else
++                {
++                    settling_ = false;
++                }
++
+                 //create a saw tooth signal gen so the trajectory planner knows whether it should swing or stride
+                 phase_generator.run(velocity, sum_of_steps / 4.0f, time);
+ 
++                // A leg that just landed must not be treated as airborne again by
++                // the next swing of the same leg one stride later.
++                if(settling_)
++                {
++                    for(unsigned int i = 0; i < 4; i++)
++                    {
++                        if(phase_generator.swing_phase_signal[i] <= 0.0f)
++                            settle_legs_[i] = false;
++                    }
++                }
++
+                 for(unsigned int i = 0; i < 4; i++)
+                 {
+                     //get the point in the swing/stride equation as a function of the sawtooth signal's magnitude for each leg
+@@ -132,6 +179,9 @@
+ 
+             champ::PhaseGenerator phase_generator;
+ 
++            bool settling_ = false;
++            bool settle_legs_[4] = {false, false, false, false};
++
+             champ::TrajectoryPlanner lf;
+             champ::TrajectoryPlanner rf;
+             champ::TrajectoryPlanner lh;
+--- a/src/champ_config/config/gait/dottorcane_gait.yaml
++++ b/src/champ_config/config/gait/dottorcane_gait.yaml
+@@ -12,3 +12,9 @@
+       stance_depth : 0.00
+       stance_duration : 0.25
+       nominal_height : 0.20
++    # Acceleration limits applied by quadruped_controller before the gait:
++    # replaces the cmd_vel smoother of the original CHAMP bringup, so start and
++    # stop no longer snap the feet (which made the robot slide).
++    velocity_smoothing:
++      max_linear_accel: 0.5
++      max_angular_accel: 1.5
+--- a/src/ldc25_sim/worlds/ldc25.world
++++ b/src/ldc25_sim/worlds/ldc25.world
+@@ -127,6 +127,12 @@
+     </gui>
+ 
+     <physics type="ode">
++      <!-- DART's default "ode" collision detector produced unstable foot
++           contacts: the standing robot glided sideways at ~0.2 m/s with its
++           legs locked. The bullet detector keeps the feet planted. -->
++      <dart>
++        <collision_detector>bullet</collision_detector>
++      </dart>
+       <real_time_update_rate>1000.0</real_time_update_rate>
+       <max_step_size>0.001</max_step_size>
+       <real_time_factor>1</real_time_factor>

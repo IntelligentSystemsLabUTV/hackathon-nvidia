@@ -1,21 +1,29 @@
 # Nebius + AgenticROS
 
-Il primo flusso integrato usa AgenticROS come livello di accesso e sicurezza ROS,
-e Nebius come livello decisionale:
+AgenticROS è il livello di accesso e sicurezza ROS; Nebius è il livello
+decisionale. L'adapter `tools/agenticros/packages/agenticros-nebius` esegue un
+ciclo osservazione → decisione → azione finché l'obiettivo non è raggiunto:
 
 ```text
-camera Gazebo -> AgenticROS snapshot -> modello vision Nebius
-              -> descrizione testuale -> Nemotron con tool calling
-              -> tool AgenticROS -> topic ROS -> Go2 simulato
+ros2_camera_snapshot ─► YOLO a riquadri / MiniCPM-V ─┐
+ros2_depth_distance  ─► distanza bersaglio, spazio libero ─┤
+                                                     ▼
+                         Nemotron: search | face_target | approach_target | finish
+                                                     │ validazione del controller
+                                                     ▼
+                         ros2_move_for (limitato, stop garantito) ── ripeti
 ```
 
-Il modello di ragionamento sceglie i tool. AgenticROS esegue le operazioni ROS e
-applica i limiti di sicurezza. Il modello vision non comanda direttamente il
-robot: produce solamente una descrizione del frame.
+Il modello non comanda direttamente il robot: sceglie un'intenzione semantica, il
+controller calcola angoli e distanze, applica distanza di arresto e margine dagli
+ostacoli, e rifiuta le azioni non valide (il rifiuto torna al modello nel passo
+successivo). Se Nemotron non restituisce un'azione utilizzabile, interviene una
+policy deterministica equivalente. La posa reale di Gazebo non viene mai passata
+al modello.
 
 ## Avvio
 
-Nel primo terminale avviare Gazebo:
+Primo terminale:
 
 ```bash
 cd ~/workspace
@@ -23,46 +31,74 @@ source install/setup.zsh
 ros2 launch ldc25-sim ldc25_dottorcane.launch.py
 ```
 
-Nel secondo terminale eseguire una richiesta singola:
+Secondo terminale:
 
 ```bash
 cd ~/workspace
-./scripts/run_nebius_agent.sh \
-  "Guarda davanti al robot e descrivi gli ostacoli. Non muovere il robot."
+./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
 ```
 
-La configurazione ROS usata dall'adapter è `config/agenticros.json`. Le variabili
-Nebius sono lette da `.env`:
+La richiesta viene prima classificata da Nemotron:
 
-- `NEBIUS_API_KEY`
-- `NEBIUS_BASE_URL`
-- `NEBIUS_VISION_MODEL`
-- `NEBIUS_REASONING_MODEL`
-- `NEBIUS_AGENTICROS_TOOLS` (opzionale, elenco separato da virgole)
+| Modalità | Esempio | Comportamento |
+|---|---|---|
+| `approach` | "cerca l'idrante rosso e vacci vicino" | ricerca ruotando, allineamento, avvicinamento fino alla distanza di arresto |
+| `describe` | "descrivi gli ostacoli, non muoverti" | un frame, descrizione in italiano, nessun movimento |
+| `move` | "ruota a destra di 90 gradi e avanza di un metro" | movimenti espliciti, avanzamento limitato dallo spazio libero |
+| `stop` | "fermati" | `ros2_estop` |
 
-Per contenere la latenza, l'adapter espone a Nemotron solo quattro tool utili al
-prototipo Gazebo invece dell'intero catalogo AgenticROS. Il tool di profondità
-rimane escluso finché il relativo topic Gazebo non viene configurato. Un elenco diverso può
-essere configurato con `NEBIUS_AGENTICROS_TOOLS`.
+## Percezione
 
-Il modello di ragionamento predefinito è `nvidia/Nemotron-3_5-Lightning`: nei
-test con tool calling ha completato due turni in circa 2,7 secondi, mentre
-`NVIDIA-Nemotron-3-Nano-30B-A3B` ha richiesto circa 30–40 secondi. Il modello
-vision rimane `openbmb/MiniCPM-V-4_5`.
+- **Bersagli COCO** (idrante, semaforo, stop sign...): YOLOv8n locale di
+  `@agenticros/object-detection`. `detectClassTiled` analizza il frame intero e
+  riquadri sovrapposti lungo l'orizzonte: sul frame 1920×1080 ridotto a 640 px
+  l'idrante a 6 m aveva confidenza < 0,2; sui riquadri 0,7–0,9 con box esatto.
+  Lo stesso rilevamento a riquadri è ora usato anche da `ros2_find_object`.
+- **Attributi** non visibili a YOLO (colore): verificati una volta da MiniCPM-V sul
+  ritaglio del box.
+- **Bersagli non COCO**: MiniCPM-V riceve il frame con 9 colonne numerate e
+  indica la colonna; nei test i box in pixel restituiti dai modelli vision
+  disponibili erano inaffidabili, la colonna no (errore ≤ 1 colonna ≈ 12°).
+- **Distanza**: `ros2_depth_distance` accetta ora una ROI normalizzata
+  (`roi_x_min`, `roi_y_min`, `roi_x_max`, `roi_y_max`); l'adapter misura la parte
+  centrale del box e un corridoio di circa ±12° davanti al robot.
 
-## Sequenza di sviluppo
+## Calibrazione della simulazione
 
-1. Verificare acquisizione e descrizione di un singolo frame senza movimento.
-2. Usare l'azione temporizzata `ros2_move_for`, che pubblica velocità limitata e
-   attende più pubblicazioni di stop alla scadenza, anche in caso di errore.
-3. Eseguire un solo ciclo osservazione -> decisione -> movimento -> stop.
-4. Ripetere il ciclo con una frequenza bassa e un limite massimo di passi.
-5. Sostituire l'azione diretta con Nav2 mapless quando il relativo stack sarà pronto.
+Misurata con la posa reale `/gz/dottorcane/pose`:
 
-In questa fase non va ancora avviato un ciclo autonomo continuo: prima devono
-essere verificati snapshot, percezione e arresto temporizzato separatamente.
+- `ros2_move_for` a 0,25 m/s per 3 s → ~0,48 m più ~7 cm di frenata, dritto;
+- rotazione a 0,5 rad/s → ~60% dell'angolo comandato più ~5° di frenata;
+- profondità nel box dell'idrante coerente con la distanza reale (6,17 m misurati
+  contro 6,56 m centro-centro).
 
-Prima dell'upload, ogni frame viene convertito in JPEG qualità 78 e ridotto entro
-`768x432`, mantenendo le proporzioni. Il frame ROS originale può quindi essere
-1920x1080, ma Nebius riceve la versione ridotta. La vision restituisce un JSON
-con ostacoli, spazio libero, aperture, livello di confidenza e incertezze.
+`run_nebius_agent.sh` imposta quindi `NEBIUS_TURN_EFFICIENCY=0.65` e
+`NEBIUS_FORWARD_EFFICIENCY=0.7`; il ciclo chiuso corregge l'errore residuo.
+
+## Perché non `run_mission`
+
+Il planner delle missioni AgenticROS è a regole, senza LLM: esegue una lista fissa
+di passi una sola volta, senza verificare l'obiettivo. Il passo di avvicinamento
+generato pubblica su `/cmd_vel` (non sul topic del Go2), con un segno di sterzata
+invertito e un template che non viene risolto. Il ciclo fino all'obiettivo vive
+quindi nell'adapter, e usa i tool AgenticROS come primitive.
+
+## Modifiche ad AgenticROS (submodule `tools/agenticros`)
+
+- `agenticros-nebius`: il vecchio flusso a un solo passo è sostituito dal ciclo
+  (`agent.ts`, `perception.ts`, `policy.ts`, `robot.ts`, test in `__tests__/`).
+- `object-detection`: `detectClassTiled` (usato anche da `ros2_find_object`, che
+  prima non trovava l'idrante a distanza) e correzione del clipping dei box.
+- `ros2_depth_distance`: parametri ROI `roi_*` negli adapter Claude Code/MCP,
+  OpenClaw e Gemini.
+- Arresto sicuro con Ctrl-C: il transport locale rimuove l'handler SIGINT di
+  rclnodejs (che chiudeva il contesto ROS prima degli stop), e il server MCP, alla
+  chiusura, interrompe i `ros2_move_for` in corso e invia `ros2_estop`. Prima il
+  controller CHAMP restava con l'ultimo `cmd_vel` e il robot continuava a muoversi.
+
+## Latenza
+
+Per passo: snapshot ~0,3 s (dopo il primo), YOLO + vision in parallelo ~1–1,5 s,
+profondità ~0,5 s, Nemotron Lightning ~0,4 s, movimento fino a 8 s. Ricerca e
+avvicinamento all'idrante dalla posizione iniziale (~6,4 m, fuori dal campo
+visivo): circa 15 passi.

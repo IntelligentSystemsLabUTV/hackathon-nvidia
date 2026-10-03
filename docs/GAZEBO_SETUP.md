@@ -59,12 +59,45 @@ In alternativa si può impostare `LDC25_GAZEBO_MODELS_PATH` prima del launch.
 Il topic sinistro pubblica immagini larghe 1920 pixel ed è stato verificato
 durante lo smoke test.
 
+## Scivolamento del robot (corretto)
+
+Il robot scivolava spesso quando si fermava: fino a 0,3 m di lato e 11° di
+rotazione con comando zero. Le cause, misurate con la posa reale
+`/gz/dottorcane/pose`, erano tre:
+
+1. **Nessuna rampa di velocità.** CHAMP legge `cmd_vel/smooth`, che nel bringup
+   originale è l'uscita di un velocity smoother; qui era collegato direttamente
+   al `cmd_vel` grezzo. Ogni scalino di velocità riportava i piedi alla posizione
+   nominale in un solo ciclo, con uno scatto delle gambe in appoggio.
+2. **Reset del passo con zampe in volo.** A velocità zero CHAMP azzera subito il
+   passo e una zampa sollevata viene comandata a terra di colpo.
+3. **Contatti piede-pavimento instabili.** Con il collision detector predefinito
+   di DART il robot, fermo e con le gambe bloccate, scivolava a velocità costante
+   (~0,2 m/s).
+
+Correzioni (i package della simulazione sono esclusi da Git, quindi sono
+raccolte in `patches/sim-slip-fix.patch`):
+
+- `champ_base`: rampa di accelerazione (`velocity_smoothing.max_linear_accel`
+  0,5 m/s², `max_angular_accel` 1,5 rad/s² in `dottorcane_gait.yaml`) e
+  `time_from_start` delle traiettorie pari al periodo del ciclo di controllo;
+- `champ`: all'arresto il passo continua finché le zampe in volo non toccano terra;
+- `ldc25.world`: `<dart><collision_detector>bullet</collision_detector></dart>`.
+
+Risultato su 15 arresti dopo avanzamenti e rotazioni: scivolamento laterale
+medio da 0,16 a 0,03 m (massimo da 0,30 a 0,07 m). Per applicare la patch su
+un'altra macchina, dalla root del repository:
+
+```bash
+patch -p1 < patches/sim-slip-fix.patch
+cbuild --packages-select champ champ_base champ_config ldc25-sim
+```
+
 ## Limiti osservati
 
-- Il controller produce molti warning `A new JointTrajectory message was
-  received while executing a previous trajectory`; la simulazione continua a
-  funzionare, ma la frequenza delle traiettorie andrà corretta prima delle prove
-  di movimento.
+- Il controller produce ancora warning `A new JointTrajectory message was
+  received while executing a previous trajectory`: sono attesi, perché CHAMP
+  invia una nuova traiettoria a ogni ciclo.
 - `ros_gz_republish` e il container DUA possono mostrare eccezioni durante lo
   shutdown via `Ctrl-C`. L'errore è nel cleanup e non ha impedito la
   pubblicazione dei sensori.

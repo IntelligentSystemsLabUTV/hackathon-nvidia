@@ -1,0 +1,286 @@
+❯ ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
+
+    _                     _   _       ____   ___  ____
+   / \   __ _  ___ _ __ | |_(_) ___ |  _ \ / _ \/ ___|
+  / _ \ / _` |/ _ \ '_ \| __| |/ __|| |_) | | | \___ \
+ / ___ \ (_| |  __/ | | | |_| | (__ |  _ <| |_| |___) |
+/_/   \_\__, |\___|_| |_|\__|_|\___||_| \_\___/|____/
+        |___/
+  AgenticROS - agentic AI for ROS-powered robots
+
+[Timing] AgenticROS MCP startup: 0.52s
+[Timing] Nebius reasoning: 4.26s
+[Goal] {"mode":"approach","target_description":"red fire hydrant","coco_class":"fire hydrant","attributes":["red"],"stop_distance_m":null,"search_direction":null,"moves":[{"advance_m":1}]}
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 3.52s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 6.43s
+[Step 1] target not visible; front clearance 2.59 m
+[Scene] The environment features a gray floor and white walls. Several gray rectangular obstacles are scattered throughout the area, with a tall vertical post in the center-left and a blue rectangular object on the right. A small black dot is visible in the upper right corner. There is a green line along the left edge of the floor.
+[Timing] Nebius reasoning: 0.36s
+[Decision] Nemotron search(right) -> rotate(-45 deg)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0 vy=0 wz=-0.5 duration=2.42s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS rotate(-45 deg): 2.43s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 1.05s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.63s
+[Step 2] target not visible; front clearance 8.61 m
+[Scene] The environment features several tall, gray rectangular pillars scattered throughout, with a few smaller gray blocks and a blue object near the center-right. A green line runs along the left edge of the floor, and a small black dot is visible in the upper right. The floor is uniformly gray, and the walls are light gray. There is a white, curved object in the foreground, likely part of the robot itself.
+[Timing] Nebius reasoning: 0.35s
+[Decision] Nemotron search(right) -> rotate(-45 deg)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0 vy=0 wz=-0.5 duration=2.42s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS rotate(-45 deg): 2.42s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.56s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Verify] red fire hydrant: match The main object in the image is a red fire hydrant, which matches the description 'red fire hydrant'.
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 4.25s
+[Step 3] target visible (yolo 0.93) bearing -38.8 deg, distance 6.29 m, height 0.12; front clearance 7.98 m
+[Scene] The environment features several tall, vertical gray pillars and various gray rectangular blocks scattered around. A red fire hydrant is visible to the right.There is a small black object near the center. The floor is gray, and the background is a light gray wall. There is a small opening or gap in the wall on the right side.
+[Timing] Nebius reasoning: 0.38s
+[Decision] Nemotron approach_target(1 m) -> rotate(-39 deg) (aligning with the target before advancing)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0 vy=0 wz=-0.5 duration=2.08s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS rotate(-39 deg): 2.09s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 1.02s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.94s
+[Step 4] target visible (yolo 0.83) bearing -18.2 deg, distance unknown, height 0.1; front clearance 6.1 m
+[Scene] The environment features several gray rectangular blocks of varying heights scattered across a flat gray floor. A red fire hydrant is positioned near the center-right of the scene. There are no visible openings or clear paths to the hydrant from the current viewpoint.
+[Timing] Nebius reasoning: 0.36s
+[Decision] Nemotron approach_target(1 m) -> rotate(-18 deg) (aligning with the target before advancing)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0 vy=0 wz=-0.5 duration=0.98s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS rotate(-18 deg): 1.00s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.52s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.06s
+[Step 5] target visible (yolo 0.62) bearing -8 deg, distance unknown, height 0.09; front clearance 5.57 m
+[Scene] The environment features several tall, gray rectangular pillars scattered throughout, with a red fire hydrant positioned near the center-right. A small black dot is visible in the upper middle area, and a blue object is near the left-middle pillar. The floor is uniformly gray, and a green line runs along the right edge, possibly indicating a boundary or path.
+[Timing] Nebius reasoning: 0.36s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.73s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.43s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.05s
+[Step 6] target visible (yolo 0.88) bearing -0.7 deg, distance 5.73 m, height 0.1; front clearance 5.03 m
+[Scene] The environment features several tall, gray rectangular pillars scattered across a flat, gray floor. A red fire hydrant is positioned centrally among these pillars. There is a small blue object near the leftmost pillar. The area appears to have limited open space between the pillars, with the fire hydrant located in a relatively open area.
+[Timing] Nebius reasoning: 0.60s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.71s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.46s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.02s
+[Step 7] target visible (yolo 0.85) bearing 1.6 deg, distance 5.15 m, height 0.11; front clearance 4.51 m
+[Scene] L'idrante rosso è visibile in mezzo a tre colonne grigie di altezza variabile. A sinistra ci sono due blocchi grigi e un cubo blu. La superficie è grigia e ilcielo è bianco. C'è una piccola apertura a destra, ma la maggior parte dello spazio è occupata da strutture.
+[Timing] Nebius reasoning: 0.40s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.73s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.41s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.10s
+[Step 8] target visible (yolo 0.91) bearing 1.7 deg, distance 4.58 m, height 0.13; front clearance 3.96 m
+[Scene] L'idrante rosso è visibile in mezzo a tre colonne grigie. La struttura è aperta, con un vuoto centrale e pareti laterali. La superficie è pianeggiante, con untracciato verde a livello del pavimento.
+[Timing] Nebius reasoning: 0.35s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.72s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.47s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.58s
+[Step 9] target visible (yolo 0.91) bearing 2 deg, distance 4.02 m, height 0.14; front clearance 3.57 m
+[Scene] In the scene, a red fire hydrant is positioned centrally between two tall, gray rectangular pillars. The area is open with a flat gray floor, and there are novisible obstacles in the immediate vicinity of the hydrant. The pillars are spaced apart, creating a clear path toward the hydrant.
+[Timing] Nebius reasoning: 0.46s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.73s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.51s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.15s
+[Step 10] target visible (yolo 0.91) bearing 1.8 deg, distance 3.44 m, height 0.16; front clearance 3.45 m
+[Scene] In the scene, a red fire hydrant is positioned centrally on a gray floor. To the left, there is a tall gray rectangular structure with a small black and whitesign attached to it. On the right, a large vertical gray pillar is visible. The background is a plain white wall, and the floor has a green line running along its edge. There is a small black object floating in the air to the left of the tall structure. The area around the fire hydrant appears to be clear of immediate obstacles, with open space in front and to the sides.
+[Timing] Nebius reasoning: 0.40s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.72s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.45s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 2.77s
+[Step 11] target visible (yolo 0.92) bearing 2.2 deg, distance 2.85 m, height 0.19; front clearance 2.87 m
+[Scene] L'idrante rosso è visibile in mezzo a due grandi pilastri grigi. Sul lato sinistro c'è un'altra struttura grigia con un cartello. Il pavimento è grigio e il muro di fondo è bianco. C'è una piccola apertura nel muro a sinistra, ma la maggior parte dello spazio è occupata da strutture e il pavimento è relativamente aperto davanti all'idrante.
+[Timing] Nebius reasoning: 0.36s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.72s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.34s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.01s
+[Step 12] target visible (yolo 0.93) bearing 3.7 deg, distance 2.27 m, height 0.24; front clearance 2.27 m
+[Scene] In the center of the room, there is a red fire hydrant. The room has gray walls and a gray floor. There are two tall gray pillars on the left and right sides of the room, and a small black object is visible on the left wall. The floor has a green line running along the back wall.
+[Timing] Nebius reasoning: 0.36s
+[Decision] Nemotron approach_target(1 m) -> advance(1 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=2.71s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(1 m): 5.72s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.55s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 3.06s
+[Step 13] target visible (yolo 0.9) bearing 4.8 deg, distance 1.67 m, height 0.33; front clearance 1.67 m
+[Scene] In the scene, a red fire hydrant is positioned between two large gray pillars. The floor is gray, and the walls are white. There is a small black and white sign on the left pillar. The area around the hydrant appears to be clear of obstacles, with ample free space for movement.
+[Timing] Nebius reasoning: 0.36s
+[Decision] Nemotron approach_target(1 m) -> advance(0.67 m)
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=3s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[MotionDebug] command topic=/dottorcane/go2_control/cmd_vel body vx=0.25 vy=0 wz=0 duration=0.83s
+[MotionDebug] publishing stop vx=0 vy=0 wz=0
+[Timing] AgenticROS advance(0.67 m): 3.84s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] AgenticROS snapshot: 0.53s
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+[Timing] Perception: 2.94s
+[Step 14] target visible (yolo 0.91) bearing 6.3 deg, distance 1.29 m, height 0.42; front clearance 1.29 m
+[Scene] L'idrante rosso è posizionato in mezzo a un ambiente con pareti grigie e un pavimento grigio. È visibile un bordo verde sul pavimento e una striscia nera e bianca sulla parete a sinistra. La zona intorno all'idrante sembra libera da ostacoli, con spazi aperti in tutte le direzioni.
+[Timing] Nebius reasoning: 0.43s
+[Decision] approach_target(1 m) rejected: the target is already within the stop distance; finish
+[Decision] fallback finish(success) -> finish(success)
+Obiettivo raggiunto: il bersaglio è davanti al robot a 1.29 m (sensore di profondità).
+[AgenticROS] Config from /home/neo/workspace/config/agenticros.json
+[AgenticROS] Config: robot.namespace="" → /cmd_vel
+
+  ╱  ~/workspace ╱   master  ?                                                                          2m 0s  ╱ workspace  ╱ neo@asus-ubuntu ╱ 17:07:12  
+❯ 

@@ -33,3 +33,5 @@ __pycache__/
 
 # Uncomment the following to avoid pushing personal configurations
 # .vscode/
+
+docs/index.html
