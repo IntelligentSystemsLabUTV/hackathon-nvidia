@@ -1,0 +1,32 @@
+# Gazebo environments for the Go2 (DottorCane) simulation.
+#
+#   ros2 launch go2_sim_worlds go2_sim.launch.py world:=<name>
+#
+# world:          SDF file inside the share directory of `package`.
+# resource_paths: model directories, relative to the assets directory
+#                 (`assets_path` launch argument, default <workspace>/config/gazebo).
+#                 Missing entries are skipped, so old layouts keep working.
+# spawn:          robot pose in the world frame (z is the drop height).
+# setup:          how to get the untracked assets, printed when they are missing.
+# map:            occupancy map for Nav2 (nav:=map), relative to this package's
+#                 share directory, in the world frame.
+# places:         named poses (rooms) in the map frame for AgenticROS navigation,
+#                 relative to this package's share directory.
+
+ldc25:
+  description: LDC25 competition field (outdoor, COCO targets)
+  package: ldc25-sim
+  world: worlds/ldc25.world
+  resource_paths: [ldc25/models, models]
+  spawn: {x: 2.42, y: 7.83, z: 0.30, yaw: 0.0}
+  setup: copy the LDC25 model collection into config/gazebo/ldc25/models
+
+house:
+  description: AWS RoboMaker Small House (kitchen, living room, bedroom)
+  package: go2_sim_worlds
+  world: worlds/house.world
+  resource_paths: [house/models]
+  spawn: {x: 0.0, y: 1.5, z: 0.30, yaw: 0.0}
+  setup: run scripts/fetch_house_world.sh
+  map: maps/house_world_map.yaml
+  places: config/places/house.json

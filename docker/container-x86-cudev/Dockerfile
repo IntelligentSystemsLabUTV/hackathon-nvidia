@@ -29,12 +29,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 # agenticros START #
 # Keep the DUA ROS 2/GPU base and add the Node toolchain and runtime
 # dependencies used by the AgenticROS monorepo and its ROS packages.
+# ros-jazzy-diagnostic-updater is listed so it is upgraded together with
+# Navigation2: the base image has an older build, and nav2_lifecycle_manager
+# then fails with an undefined diagnostic_updater::Updater symbol.
 COPY --from=node:22-bookworm-slim /usr/local/ /usr/local/
 
 RUN npm install --global pnpm@9.15.4 && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     libudev-dev \
+    ros-jazzy-diagnostic-updater \
     ros-jazzy-moveit \
     ros-jazzy-navigation2 \
     ros-jazzy-nav2-bringup \

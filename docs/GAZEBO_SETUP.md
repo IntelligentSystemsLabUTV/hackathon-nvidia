@@ -45,10 +45,161 @@ ros2 launch ldc25-sim ldc25_dottorcane.launch.py \
 
 In alternativa si può impostare `LDC25_GAZEBO_MODELS_PATH` prima del launch.
 
+## Ambienti multipli
+
+Il package tracciato `src/go2_sim_worlds` lancia il Go2 in un ambiente a
+scelta con lo stesso stack robot (CHAMP, camere ZED, bridge, republisher):
+
+```bash
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=ldc25   # default
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house
+```
+
+Struttura:
+
+```text
+src/go2_sim_worlds/                 (in Git)
+├── config/environments.yaml        registro ambienti: world, modelli, spawn
+├── config/go2_bridge.yaml          bridge ROS <-> Gazebo comune
+├── launch/go2_sim.launch.py        launch generico
+├── worlds/house.world              casa adattata al Go2
+└── maps/house_world_map.*          mappa 2D della casa (per Nav2, non usata ora)
+config/gazebo/                      (ignorata da Git, asset pesanti)
+├── ldc25/models/                   modelli LDC25
+├── models -> ldc25/models          symlink per ldc25_dottorcane.launch.py
+└── house/{models,photos}/          scaricati da scripts/fetch_house_world.sh
+```
+
+La directory degli asset si cambia con `assets_path:=...` o con la variabile
+`GO2_SIM_ASSETS_PATH`; se mancano i modelli il launch stampa come ottenerli.
+
+### House world
+
+Mondo AWS RoboMaker Small House (68 modelli `aws_robomaker_residential_*`),
+dal porting Gazebo Harmonic di
+[pantelis/turtlebot-maze](https://github.com/pantelis/turtlebot-maze#house-world)
+(commit `d306a5c`, fissato in `scripts/fetch_house_world.sh`). Rispetto alla
+versione TurtleBot servono tre correzioni, verificate in simulazione:
+
+1. **Fisica e plugin come `ldc25.world`**: passo 1 ms e collision detector
+   bullet (vedi sotto), più i system plugin usati dal Go2.
+2. **Modelli davvero statici.** Il file originale avvolge ogni `<include>` in
+   un `<model><static>true</static>`, ma Gazebo lascia dinamici i modelli
+   annidati: i mobili collidevano tra loro e la simulazione andava a 0,2× il
+   tempo reale. In `house.world` ogni modello è un `<include>` con
+   `<static>true</static>`: tempo reale 1,0×.
+3. **Niente collisioni per pavimento e tappeti.** Sono lastre sottili in
+   triangle mesh (4 cm e 3 mm); con DART + bullet i piedi ci affondavano e il
+   robot collassava (base a 0,09 m invece di 0,22 m) senza riuscire a rialzarsi.
+   Sono complanari al ground plane, quindi lo script rimuove le loro collisioni
+   e il robot cammina sul piano.
+
+Spawn di default `(0, 1,5)`, rivolto verso la cucina. Misure sulla RTX 2060
+(headless): tempo reale 1,0×, camera sinistra 1920×1080 a ~2,5–3 Hz (LDC25
+~5 Hz; la casa ha più geometria e luci), avanzamento e rotazione regolari.
+
+### Aggiungere un ambiente
+
+1. Mettere i modelli in `config/gazebo/<nome>/models` (o uno script che li
+   scarica) e il world in `src/go2_sim_worlds/worlds/<nome>.world`.
+2. Nel world: `<world name="default">`, il blocco `<physics>` e i plugin di
+   `house.world`, modelli statici come `<include>` con `<static>true</static>`,
+   pavimenti piani senza collisioni mesh sottili.
+3. Aggiungere la voce in `config/environments.yaml` (spawn in un punto libero)
+   e ricompilare con `cbuild --packages-select go2_sim_worlds`.
+
+## Navigazione con Nav2
+
+`go2_sim.launch.py` ha l'argomento `nav`:
+
+| `nav:=` | Cosa parte | Quando usarlo |
+|---|---|---|
+| `none` (default) | solo la simulazione, come prima | AgenticROS senza navigazione |
+| `map` | Nav2 + `map_server` + AMCL sulla mappa del world (`map` in `environments.yaml`) | "vai in camera da letto" su una casa nota |
+| `slam` | Nav2 + `slam_toolbox` (mappa costruita dal vivo) + `agenticros_explore` (frontiere) | casa sconosciuta, senza mappa a priori |
+
+```bash
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=map
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=slam
+```
+
+Pezzi aggiunti (`launch/go2_nav.launch.py`, tutto in `go2_sim_worlds`):
+
+- **Scan.** Il robot non ha un lidar: `depthimage_to_laserscan` ricava
+  `/dottorcane/scan` dalla profondità della ZED (672×376, 110°, 0,15–8 m, piano
+  orizzontale a ~0,39 m da terra, frame `dottorcane/zedx_link`) per AMCL e SLAM.
+  Il bridge pubblica anche `/dottorcane/slam/zed_x_driver/depth_camera_info`.
+- **Ostacoli.** Un solo piano a 0,39 m non vede ostacoli bassi o sottili: con lo
+  SLAM il robot si è incastrato nel rack del bilanciere della palestra.
+  `scripts/depth_obstacle_scan.py` riproietta tutta l'immagine di profondità,
+  tiene i punti tra 6 e 70 cm dal pavimento e pubblica il più vicino per
+  direzione in `/dottorcane/scan_obstacles` (0,4–4 m), usato da costmap e
+  collision monitor. Le altezze sono misurate in `dottorcane/base_ground`, un
+  frame a terra con il solo yaw pubblicato da `ground_truth_odom.py`, così il
+  filtro resta giusto mentre il corpo beccheggia. La nuvola di punti del bridge
+  (~250k punti) arrivava sotto 1 Hz: ora è `lazy` e non viene usata.
+- **Odometria.** `scripts/ground_truth_odom.py` pubblica `/dottorcane/odom`
+  (`nav_msgs/Odometry`) e il TF `dottorcane/odom → dottorcane/base_link` dalla
+  posa di Gazebo: il frame `odom` coincide con il world, come la mappa della casa.
+  Con `nav:=map|slam` il TF di `ros_gz_republish` e lo statico `map → odom`
+  sono disattivati: `map → odom` lo pubblica AMCL o SLAM.
+- **Parametri.** `config/nav2_go2.yaml`: velocità entro i limiti AgenticROS
+  (0,25 m/s, 0,5 rad/s), rotazione sul posto + regulated pure pursuit,
+  footprint del Go2, tolleranza 0,4 m. Catena delle velocità: controller →
+  `velocity_smoother` → `collision_monitor` (stop se lo scan vede qualcosa a
+  ridosso del corpo) → `/dottorcane/go2_control/cmd_vel`.
+- **SLAM.** `config/slam_toolbox_go2.yaml`: scan matching e loop closure spenti
+  perché l'odometria è il ground truth (sul robot reale vanno riaccesi);
+  `restamp_tf: true`, altrimenti `map → odom` porta il tempo dello scan (5 Hz) e
+  il controller abortisce i goal con "extrapolation into the future";
+  `config/nav2_go2_slam.yaml` rende la costmap globale "rolling" (30×30 m),
+  altrimenti all'avvio il robot è fuori dalla mappa appena iniziata e il planner
+  rifiuta ogni goal. `agenticros_explore` sceglie la frontiera più vicina e
+  rinuncia a un goal dopo 75 s (di solito ne bastano 15–40; oltre, il robot è
+  bloccato).
+- **Stanze.** `config/places/house.json`: pose con nome (bedroom, kitchen,
+  living_room, dining_room, gym, balcony, entrance, second_room, hall) nel
+  formato di AgenticROS, controllate sulla mappa (libere con 0,35 m di margine e
+  raggiungibili dal punto di partenza).
+
+Prova senza AgenticROS:
+
+```bash
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
+  "{pose: {header: {frame_id: map}, pose: {position: {x: -6.2, y: 0.3}, orientation: {z: 0.7071, w: 0.7071}}}}"
+ros2 action send_goal /explore agenticros_msgs/action/Explore "{mode: explore, timeout_s: 240.0, max_goals: 2}"   # nav:=slam
+```
+
+Misure (house, headless): partenza → camera da letto ~115 s (~7 m), partenza →
+cucina ~47 s, cucina → camera ~114 s; AMCL entro 2–3 cm e ~7° dalla posa reale.
+Velocità effettiva ~0,1–0,17 m/s, più le rotazioni sul posto.
+
+Problemi risolti (da ricordare se si ricrea il container):
+
+- `lifecycle_manager: undefined symbol diagnostic_updater::Updater...`: l'immagine
+  base ha `ros-jazzy-diagnostic-updater` più vecchio di Navigation2. Il
+  Dockerfile ora lo installa insieme a Nav2; nel container già creato:
+  `sudo apt-get update && sudo apt-get install --only-upgrade ros-jazzy-diagnostic-updater`.
+- Plugin del BT navigator con `undefined symbol BT::StatusChangeLogger`: l'underlay
+  DUA ha BehaviorTree.CPP 4.9 prima di quello di Jazzy (4.10) nel
+  `LD_LIBRARY_PATH`. `go2_nav.launch.py` mette `/opt/ros/jazzy/lib` in testa solo
+  per i processi Nav2.
+- Navigazioni abortite con `Timed out while waiting for action server to
+  acknowledge goal request for compute_path_to_pose`: con Gazebo che satura la CPU
+  il default di 20 ms è troppo poco, `default_server_timeout` è 1000 ms.
+- Collision monitor che ferma il robot con "invalid source": lo scan degli
+  ostacoli arrivava troppo di rado (nuvola di punti sotto 1 Hz). Con
+  `depth_obstacle_scan.py` segue la profondità (~2 Hz con la sim carica) e
+  `source_timeout` è 3 s.
+
 ## Topic utili
 
 ```text
 /dottorcane/slam/zed_x_driver/left/image_rect_color   sensor_msgs/msg/Image
+/dottorcane/slam/zed_x_driver/left/image_rect_color/compressed  sensor_msgs/msg/CompressedImage (JPEG, per i viewer)
+/dottorcane/scan                                      sensor_msgs/msg/LaserScan (nav:=map|slam, dalla profondità)
+/dottorcane/scan_obstacles                            sensor_msgs/msg/LaserScan (nav:=map|slam, profondità 6-70 cm dal pavimento)
+/dottorcane/odom                                      nav_msgs/msg/Odometry (nav:=map|slam)
 /dottorcane/slam/zed_x_driver/right/image_rect_color  sensor_msgs/msg/Image
 /dottorcane/slam/zed_x_driver/point_cloud             sensor_msgs/msg/PointCloud2
 /dottorcane/slam/zed_x_driver/imu                     sensor_msgs/msg/Imu
@@ -58,6 +209,19 @@ In alternativa si può impostare `LDC25_GAZEBO_MODELS_PATH` prima del launch.
 
 Il topic sinistro pubblica immagini larghe 1920 pixel ed è stato verificato
 durante lo smoke test.
+
+Per guardare la camera usa la copia JPEG (~0,16 MB a frame, ~13 Hz), pubblicata
+da `image_transport::Republisher` nello stesso container del bridge: il topic raw
+pesa ~6 MB a frame e `rqt_image_view` o `ros2 topic hz` (Python) non reggono il
+flusso (~0,6 Hz). Gli agenti usano il raw a piena qualità.
+
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+Poi scegli nel menu a tendina la voce `.../left/image_rect_color/compressed`.
+Non passarla come argomento: `rqt_image_view` la tratterebbe come topic raw e
+andrebbe in crash (`incompatible type ... CompressedImage`).
 
 ## Scivolamento del robot (corretto)
 
@@ -101,5 +265,6 @@ cbuild --packages-select champ champ_base champ_config ldc25-sim
 - `ros_gz_republish` e il container DUA possono mostrare eccezioni durante lo
   shutdown via `Ctrl-C`. L'errore è nel cleanup e non ha impedito la
   pubblicazione dei sensori.
-- Questo launch non contiene ancora Nav2 mapless. La navigazione verrà aggiunta
-  dal relativo workstream senza `map_server` o AMCL.
+- Con Nav2 il `controller_server` segnala spesso `Control loop missed its desired
+  rate of 10 Hz`: la posa arriva a 10 Hz e la simulazione oscilla attorno al tempo
+  reale. È innocuo.

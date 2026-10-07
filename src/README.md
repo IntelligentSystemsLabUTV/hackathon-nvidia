@@ -17,8 +17,8 @@ AgenticROS (MCP) ── ros2_camera_snapshot ─► YOLO a riquadri (bersagli CO
       │                                     MiniCPM-V su Nebius (scena, colore)  │
       │                                              │ osservazione             │
       │                                              ▼                          │
-      │                          Nemotron su Nebius: search / face_target /      │
-      │                          approach_target / finish                       │
+      │                          Nemotron su Nebius: search / explore /          │
+      │                          face_target / approach_target / finish         │
       │                                              │ validata dal controller  │
       └──── ros2_move_for / ros2_estop ◄─────────────┘──────────────────────────┘
 ```
@@ -27,7 +27,8 @@ AgenticROS (MCP) ── ros2_camera_snapshot ─► YOLO a riquadri (bersagli CO
    avvicinati), `describe` (guarda e descrivi), `move` (movimenti espliciti) o `stop`.
 2. A ogni passo AgenticROS acquisisce un frame; YOLO (`@agenticros/object-detection`)
    trova il bersaglio su riquadri del frame 1920×1080, così anche un oggetto a 6 m
-   viene rilevato. Per bersagli non COCO si usa MiniCPM-V con una griglia di colonne.
+   viene rilevato. Per bersagli non COCO, o COCO che YOLO non trova (frequente con
+   i modelli renderizzati della casa), si usa MiniCPM-V con una griglia di colonne.
    Il colore ("rosso") viene verificato una volta da MiniCPM-V sul ritaglio.
 3. `ros2_depth_distance` misura la distanza dentro il box del bersaglio e lo spazio
    libero nel corridoio davanti al robot.
@@ -36,8 +37,15 @@ AgenticROS (MCP) ── ros2_camera_snapshot ─► YOLO a riquadri (bersagli CO
    non valida usa una policy deterministica.
 5. `ros2_move_for` esegue il movimento con i limiti di sicurezza di AgenticROS. Il
    ciclo si ripete fino all'arrivo (bersaglio centrato e a ≤ 1,35 m), al fallimento
-   (giro completo senza vederlo, percorso bloccato) o ai limiti di passi/tempo.
-   All'uscita, anche con `Ctrl-C`, viene sempre inviato `ros2_estop`.
+   (esplorazioni esaurite, nessuna direzione libera, percorso bloccato) o ai limiti
+   di passi/tempo. All'uscita, anche con `Ctrl-C`, viene sempre inviato `ros2_estop`.
+6. **Esplorazione senza mappa.** Se dopo un giro completo il bersaglio non si vede,
+   il controller rifiuta altri `search` e chiede `explore`: durante il giro ha
+   registrato lo spazio libero per ogni direzione, sceglie la più aperta (evitando
+   quella da cui il robot arriva), si gira, avanza fino a 2,5 m e rifà il giro da lì.
+   Così "vai in camera da letto" (bersaglio: letto) può uscire dalla stanza di
+   partenza. Al massimo 4 esplorazioni, poi l'agente si arrende. Con `nav:=slam` l'esplorazione
+   va invece con Nav2 alla frontiera successiva della mappa SLAM (fino a 8 volte).
 
 Il modello non accede mai direttamente ai topic né alla posa reale di Gazebo:
 passa sempre dai tool AgenticROS.
@@ -46,7 +54,8 @@ passa sempre dai tool AgenticROS.
 
 | Package | Ruolo |
 |---|---|
-| `ldc25_sim` (`ldc25-sim`) | Mondo Gazebo LDC25 e launch file della simulazione |
+| `go2_sim_worlds` | **Tracciato in Git.** Launch unico `go2_sim.launch.py world:=<nome>` e ambienti (`ldc25`, `house`) |
+| `ldc25_sim` (`ldc25-sim`) | Mondo Gazebo LDC25 e launch file originale della simulazione |
 | `dottorcane_description` | Descrizione del robot DottorCane (Go2 + sensori) |
 | `go2_description` | URDF/mesh del Unitree Go2 |
 | `champ`, `champ_base`, `champ_config`, `champ_msgs` | Controller di locomozione CHAMP |
@@ -96,23 +105,49 @@ cd tools/agenticros && pnpm build
 
 ## 1. Lanciare la simulazione
 
+Ambienti disponibili (definiti in `go2_sim_worlds/config/environments.yaml`):
+
+| `world:=` | Ambiente | Asset (ignorati da Git) |
+|---|---|---|
+| `ldc25` (default) | Campo gara LDC25, esterno, bersagli COCO (idrante, semaforo) | `config/gazebo/ldc25/models` |
+| `house` | AWS RoboMaker Small House: cucina, soggiorno, camera, palestra | `config/gazebo/house/` — `./scripts/fetch_house_world.sh` |
+
+Solo la prima volta, per la casa (scarica ~105 MB di modelli):
+
+```bash
+./scripts/fetch_house_world.sh
+cbuild --packages-select go2_sim_worlds
+```
+
 Terminale 1:
 
 ```bash
 cd ~/workspace
 source install/setup.zsh
-ros2 launch ldc25-sim ldc25_dottorcane.launch.py
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house
 ```
 
 Opzioni:
 
 ```bash
 # senza GUI
-ros2 launch ldc25-sim ldc25_dottorcane.launch.py gui:=false
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house gui:=false
 
-# se il workspace è stato spostato
-ros2 launch ldc25-sim ldc25_dottorcane.launch.py models_path:="$PWD/config/gazebo/models"
+# posa di spawn diversa da quella dell'ambiente (yaw in radianti)
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house x:=4.0 y:=-1.0 yaw:=1.57
+
+# asset in un'altra directory (default <workspace>/config/gazebo)
+ros2 launch go2_sim_worlds go2_sim.launch.py assets_path:=/percorso/gazebo
+
+# con Nav2: sulla mappa nota della casa (AMCL) oppure senza mappa (SLAM + frontiere)
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=map
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=slam
 ```
+
+Topic, bridge e controller sono identici in tutti gli ambienti, quindi
+AgenticROS e `run_nebius_agent.sh` funzionano senza modifiche. Il vecchio
+`ros2 launch ldc25-sim ldc25_dottorcane.launch.py` funziona ancora
+(`config/gazebo/models` è un symlink a `ldc25/models`).
 
 Verifica che camera e comando velocità siano attivi:
 
@@ -145,11 +180,22 @@ Altri esempi:
 ./scripts/run_nebius_agent.sh "trova il semaforo e fermati a 2 metri"
 ./scripts/run_nebius_agent.sh "ruota a destra di 90 gradi e avanza di un metro"
 ./scripts/run_nebius_agent.sh "Ferma subito il robot."
+
+# con la simulazione lanciata con nav:=map (stanze note) o nav:=slam (esplorazione)
+./scripts/run_nebius_agent.sh "vai in camera da letto"
+./scripts/run_nebius_agent.sh "vai vicino al frigorifero"
 ```
 
-I bersagli più affidabili sono le classi COCO presenti nel mondo (idrante =
-`fire hydrant`, semaforo = `traffic light`, `stop sign`...), rilevate localmente
-da YOLO. Altri oggetti vengono cercati con il modello vision, in modo meno preciso.
+Con `nav:=map` l'agente conosce le stanze della casa
+(`go2_sim_worlds/config/places/house.json`) e ci arriva con Nav2; con `nav:=slam`
+non usa la mappa nota, esplora la casa (frontiere della mappa SLAM) finché trova
+l'oggetto che identifica la stanza. Dettagli in
+[`docs/NEBIUS_AGENTICROS.md`](../docs/NEBIUS_AGENTICROS.md#navigazione-con-nav2).
+
+I bersagli più affidabili sono le classi COCO presenti nel mondo, rilevate
+localmente da YOLO: in `ldc25` idrante = `fire hydrant`, semaforo =
+`traffic light`, `stop sign`; in `house` frigorifero = `refrigerator`, sedia =
+`chair`, divano = `couch`, tavolo = `dining table`, `tv`, `bed`, `potted plant`. Altri oggetti vengono cercati con il modello vision, in modo meno preciso.
 
 Su stderr il log mostra ogni passo: `[Goal]` (compito interpretato), `[Step N]`
 (bersaglio, angolo, distanza, spazio libero), `[Scene]`, `[Decision]` (scelta di
@@ -166,8 +212,8 @@ esce solo la risposta finale in italiano.
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1/` | Endpoint OpenAI-compatible |
 | `NEBIUS_VISION_MODEL` | `openbmb/MiniCPM-V-4_5` | Modello che descrive il frame |
 | `NEBIUS_REASONING_MODEL` | `nvidia/Nemotron-3_5-Lightning` | Modello che ragiona e sceglie le azioni |
-| `NEBIUS_MAX_STEPS` | `30` | Passi massimi osservazione → azione |
-| `NEBIUS_MAX_SECONDS` | `300` | Durata massima di un compito |
+| `NEBIUS_MAX_STEPS` | `80` | Passi massimi osservazione → azione |
+| `NEBIUS_MAX_SECONDS` | `600` | Durata massima di un compito |
 | `NEBIUS_STOP_DISTANCE_M` | `1.0` | Distanza camera → bersaglio a cui fermarsi (la richiesta può sovrascriverla, es. "fermati a 2 metri") |
 | `NEBIUS_DETECTION_MIN_CONFIDENCE` | `0.35` | Soglia YOLO |
 | `NEBIUS_POLICY` | `llm` | `auto` = solo policy deterministica, senza Nemotron (debug) |
@@ -181,23 +227,40 @@ Variabili con default impostati da `run_nebius_agent.sh` (sovrascrivibili in `.e
 | `NEBIUS_CAMERA_HFOV_DEG` | `110` | Campo visivo orizzontale della ZED X simulata |
 | `NEBIUS_TURN_EFFICIENCY` | `0.65` | Frazione della rotazione comandata ottenuta dal passo CHAMP (misurata) |
 | `NEBIUS_FORWARD_EFFICIENCY` | `0.7` | Frazione dell'avanzamento comandato ottenuto (misurata) |
+| `GO2_WORLD` | `house` | World lanciato: sceglie il file delle stanze |
+| `AGENTICROS_PLACES_PATH` | `src/go2_sim_worlds/config/places/${GO2_WORLD}.json` | Stanze con nome per `ros2_navigate_to_place` (usate solo con `nav:=map`) |
 | `AGENTICROS_DEBUG_POSE_TOPIC` | vuoto | `/gz/dottorcane/pose` abilita la diagnostica del movimento sulla posa reale (aggiunge ~6 s a ogni movimento; mai passata al modello) |
 
 `config/agenticros.json` definisce transport DDS locale (domain 0), topic camera
 (`/dottorcane/slam/zed_x_driver/left/image_rect_color`), topic
-`cmd_vel` (`/dottorcane/go2_control/cmd_vel`) e limiti di sicurezza
-(0.25 m/s lineare, 0.5 rad/s angolare).
+`cmd_vel` (`/dottorcane/go2_control/cmd_vel`), limiti di sicurezza
+(0.25 m/s lineare, 0.5 rad/s angolare) e `skillPaths` con la capability Nav2
+`navigate_to` (`config/agenticros-skills/go2-nav2`).
 
 ## Topic principali
 
 ```text
 /dottorcane/slam/zed_x_driver/left/image_rect_color   sensor_msgs/msg/Image
+/dottorcane/slam/zed_x_driver/left/image_rect_color/compressed  sensor_msgs/msg/CompressedImage (JPEG, per i viewer)
 /dottorcane/slam/zed_x_driver/right/image_rect_color  sensor_msgs/msg/Image
 /dottorcane/slam/zed_x_driver/point_cloud             sensor_msgs/msg/PointCloud2
 /dottorcane/slam/zed_x_driver/imu                     sensor_msgs/msg/Imu
 /dottorcane/joint_states                              sensor_msgs/msg/JointState
 /dottorcane/go2_control/cmd_vel                       geometry_msgs/msg/Twist
 ```
+
+Per guardare la camera usa la copia JPEG (~0,16 MB a frame, ~13 Hz), pubblicata
+da `image_transport::Republisher` nello stesso container del bridge: il topic raw
+pesa ~6 MB a frame e `rqt_image_view` o `ros2 topic hz` (Python) non reggono il
+flusso (~0,6 Hz). Gli agenti usano il raw a piena qualità.
+
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+Poi scegli nel menu a tendina la voce `.../left/image_rect_color/compressed`.
+Non passarla come argomento: `rqt_image_view` la tratterebbe come topic raw e
+andrebbe in crash (`incompatible type ... CompressedImage`).
 
 ## Problemi noti
 

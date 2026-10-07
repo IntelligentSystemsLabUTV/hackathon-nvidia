@@ -1,0 +1,13 @@
+# Overrides of nav2_go2.yaml for `go2_sim.launch.py nav:=slam`.
+#
+# slam_toolbox grows /map from what the camera has seen: at start-up it covers
+# only the area in front of the robot, so a costmap sized on the map leaves the
+# robot outside it and the planner rejects every goal ("Start ... outside
+# bounds"). A fixed-size rolling global costmap keeps the robot inside, with the
+# SLAM map as its static layer.
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      rolling_window: true
+      width: 30
+      height: 30

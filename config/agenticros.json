@@ -17,5 +17,8 @@
   "safety": {
     "maxLinearVelocity": 0.25,
     "maxAngularVelocity": 0.5
-  }
+  },
+  "skillPaths": [
+    "agenticros-skills/go2-nav2"
+  ]
 }

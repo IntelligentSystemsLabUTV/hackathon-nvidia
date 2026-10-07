@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "places": [
+    {
+      "name": "bedroom",
+      "description": "Camera da letto (ovest): letto matrimoniale, comodini, scrivania, armadio. Il robot si ferma davanti ai piedi del letto.",
+      "x": -6.2,
+      "y": 0.3,
+      "yaw": 1.571,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "second_room",
+      "description": "Seconda stanza (sud-ovest): TV a parete, sedia, palla. Separata dalla camera da letto da una parete.",
+      "x": -5.8,
+      "y": -3.0,
+      "yaw": 1.571,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "living_room",
+      "description": "Soggiorno (sud): divano bianco ad angolo, tavolino, TV. Il robot guarda il divano dal lato della TV.",
+      "x": 0.6,
+      "y": -4.1,
+      "yaw": 1.571,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "kitchen",
+      "description": "Cucina (est): frigorifero, piano cottura con cappa, mobili della cucina.",
+      "x": 7.2,
+      "y": -2.0,
+      "yaw": 0.0,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "dining_room",
+      "description": "Sala da pranzo (nord-est): tavolo da cucina con quattro sedie.",
+      "x": 4.9,
+      "y": 1.0,
+      "yaw": 0.0,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "gym",
+      "description": "Angolo palestra (nord): attrezzo fitness, manubri, palla.",
+      "x": 3.0,
+      "y": 1.4,
+      "yaw": 1.571,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "balcony",
+      "description": "Zona finestre (nord-ovest): tavolino con due sedie davanti alle vetrate.",
+      "x": -0.5,
+      "y": 2.9,
+      "yaw": 1.571,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "entrance",
+      "description": "Ingresso (sud-est): porta di casa e scarpiera.",
+      "x": 6.4,
+      "y": -3.8,
+      "yaw": -1.571,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    },
+    {
+      "name": "hall",
+      "description": "Centro della casa, punto di partenza del robot.",
+      "x": 0.0,
+      "y": 1.5,
+      "yaw": 0.0,
+      "frame": "map",
+      "updated_at": "2026-10-07T00:00:00.000Z"
+    }
+  ]
+}

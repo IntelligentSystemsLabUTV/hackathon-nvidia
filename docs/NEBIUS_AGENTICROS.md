@@ -46,6 +46,7 @@ La richiesta viene prima classificata da Nemotron:
 | `describe` | "descrivi gli ostacoli, non muoverti" | un frame, descrizione in italiano, nessun movimento |
 | `move` | "ruota a destra di 90 gradi e avanza di un metro" | movimenti espliciti, avanzamento limitato dallo spazio libero |
 | `stop` | "fermati" | `ros2_estop` |
+| `goto` | "vai in camera da letto" (solo con `nav:=map`) | Nav2 fino alla stanza, poi descrizione di ciò che vede |
 
 ## Percezione
 
@@ -54,6 +55,9 @@ La richiesta viene prima classificata da Nemotron:
   riquadri sovrapposti lungo l'orizzonte: sul frame 1920×1080 ridotto a 640 px
   l'idrante a 6 m aveva confidenza < 0,2; sui riquadri 0,7–0,9 con box esatto.
   Lo stesso rilevamento a riquadri è ora usato anche da `ros2_find_object`.
+  Se YOLO non trova il bersaglio si usa la colonna indicata da MiniCPM-V (vedi
+  sotto): nella casa YOLOv8n non riconosce i modelli renderizzati (frigo
+  ignorato anche con soglia 0,05, divano a 0,10), mentre MiniCPM-V li vede.
 - **Attributi** non visibili a YOLO (colore): verificati una volta da MiniCPM-V sul
   ritaglio del box.
 - **Bersagli non COCO**: MiniCPM-V riceve il frame con 9 colonne numerate e
@@ -62,6 +66,93 @@ La richiesta viene prima classificata da Nemotron:
 - **Distanza**: `ros2_depth_distance` accetta ora una ROI normalizzata
   (`roi_x_min`, `roi_y_min`, `roi_x_max`, `roi_y_max`); l'adapter misura la parte
   centrale del box e un corridoio di circa ±12° davanti al robot.
+
+## Navigazione con Nav2
+
+All'avvio l'agente chiama `ros2_list_actions` e sceglie la modalità in base a ciò
+che gira (`go2_sim.launch.py nav:=...`, vedi [GAZEBO_SETUP.md](GAZEBO_SETUP.md)):
+
+| Simulazione | Stanze | "vai in camera da letto" | Bersaglio non visto dopo un giro |
+|---|---|---|---|
+| `nav:=map` (Nav2 + AMCL) | `ros2_list_places` | `goto bedroom`: Nav2 fino alla stanza, poi descrizione | esplorazione per spazio libero |
+| `nav:=slam` (Nav2 + SLAM) | ignorate: la casa non è nota | `approach bed` | Nav2 verso la frontiera successiva della mappa SLAM, poi nuovo giro |
+| `nav:=none` | — | `approach bed` | esplorazione per spazio libero |
+
+- **Stanze.** `run_nebius_agent.sh` imposta `AGENTICROS_PLACES_PATH` su
+  `src/go2_sim_worlds/config/places/${GO2_WORLD:-house}.json`. Nemotron riceve
+  nome e descrizione di ogni stanza e sceglie `goto` con `place`, oppure, per un
+  oggetto che sta in una stanza nota ("vai vicino al letto"), `approach` con
+  `place`: prima Nav2 fino alla stanza, poi l'avvicinamento visivo.
+- **Navigazione.** `ros2_navigate_to_place` invia `NavigateToPose` tramite la
+  capability `navigate_to`, dichiarata dalla skill locale
+  `config/agenticros-skills/go2-nav2` (`skillPaths` in `config/agenticros.json`).
+  Pianificazione, ostacoli e limiti di velocità sono di Nav2 (parametri allineati
+  ai limiti AgenticROS); l'agente aspetta l'esito (fino a 11 minuti).
+- **Frontiere.** Con `nav:=slam` l'intent `explore` diventa l'azione `frontier`:
+  `ros2_action_goal` su `/explore` (`agenticros_explore`, un goal). Se non ci sono
+  frontiere raggiungibili, l'agente torna all'esplorazione per spazio libero.
+- **Arresto.** `ros2_estop` annulla anche la navigazione: i goal inviati dall'MCP
+  e, con `cancel_goal` a id nullo, tutti i goal di `navigate_to_pose`. Senza,
+  Nav2 tornerebbe a comandare il robot subito dopo il `cmd_vel` nullo. Verificato:
+  `ros2_navigate_to_place` restituisce `canceled` e il robot resta fermo.
+
+Prove (house, headless):
+
+- `nav:=map`, "vai in camera da letto" → `goto bedroom`: Nav2 dalla cucina alla
+  camera in 114 s, poi MiniCPM-V descrive letto, scrivania e sedia.
+- `nav:=slam`, mappa vuota, "vai in camera da letto" → `approach bed`: cinque
+  frontiere (~11 minuti, due perse dietro il divano), poi il letto vero è visto
+  da ~5 m e confermato; l'avvicinamento si è fermato a 2,3 m per il limite di 80
+  passi, perché Nemotron chiedeva passi da 10 cm (ora il minimo è 0,5 m). Ripartito
+  da lì, "vai vicino al letto" arriva a 1,1 m dal letto in due passi.
+- Lungo la strada la verifica ha scartato divano e tavolo da pranzo presi per
+  letti (YOLO 0,35–0,65).
+
+## Esplorazione senza mappa
+
+Senza Nav2 (o con `nav:=slam`) l'agente non usa la mappa della casa
+(`src/go2_sim_worlds/maps/house_world_map.{pgm,yaml}`): una richiesta come "vai in
+camera da letto" diventa "trova il letto e avvicinati".
+
+Se il bersaglio non compare durante un giro completo, il controller (`policy.ts`)
+fa esplorare il robot:
+
+- durante il giro registra lo spazio libero davanti al robot per ogni direzione
+  (heading stimato sommando le rotazioni eseguite, senza posa reale);
+- MiniCPM-V indica anche le colonne con porte o passaggi interni verso altre
+  stanze; una porta conta solo se la riportano almeno due frame dello stesso giro
+  (frame con più di 3 porte scartati: il modello sta tirando a indovinare);
+- sceglie prima le porte confermate, altrimenti la direzione più aperta (letture
+  oltre 5 m contano uguale); penalizza quella da cui il robot arriva e scarta
+  quelle trovate bloccate;
+- si gira, avanza fino a 2,5 m con i soliti limiti e rifà il giro da lì;
+- dopo 4 esplorazioni (8 con le frontiere di `nav:=slam`), o se nessuna
+  direzione ha almeno 1,5 m liberi, termina con insuccesso.
+
+**Falsi positivi.** Nella casa YOLO scambia il divano bianco per un letto
+(0,4–0,55) e MiniCPM-V "vede" il letto in stanze dove non c'è. Per questo:
+
+- i rilevamenti YOLO sotto 0,8 (`NEBIUS_VERIFY_BELOW_CONFIDENCE`) sono verificati
+  da MiniCPM-V sul ritaglio ("un divano non è un letto"); la soglia era 0,6, ma il
+  divano è arrivato a 0,65 come letto;
+- le segnalazioni deboli (solo MiniCPM-V, o YOLO sotto 0,8) contano solo se si
+  ripetono nel frame successivo: fino ad allora giro ed esplorazione non vengono
+  azzerati e `finish(success)` è rifiutato.
+- una segnalazione non confermata non chiude mai la ricerca: né come arrivo né
+  come "percorso bloccato" (MiniCPM-V ha visto un "letto" a 0,44 m che era il
+  divano davanti al robot); il robot continua a cercare ed esplorare.
+
+**Limite noto.** Senza mappa la stanza giusta non è garantita. Nella casa la
+camera è a ~6 m dal punto di partenza, ma attraverso un passaggio stretto a
+sud-ovest (~2,3 m di spazio libero misurato), mentre verso +x c'è il soggiorno
+aperto (5–8 m): l'esplorazione tende a partire dalla parte sbagliata e le porte
+riportate da MiniCPM-V sono rumorose. Nei test il robot esplorava e scartava i
+falsi positivi, ma non è arrivato al letto entro 2 esplorazioni.
+
+Nemotron vede `exploring` ed `explorations` nell'osservazione e chiama `explore`;
+se insiste con `search` dopo il giro, il controller lo rifiuta e la policy
+deterministica esegue l'esplorazione. I log `[Explore]` mostrano la fase, la
+direzione scelta e lo spazio libero misurato per ogni direzione.
 
 ## Calibrazione della simulazione
 
@@ -95,6 +186,27 @@ quindi nell'adapter, e usa i tool AgenticROS come primitive.
   rclnodejs (che chiudeva il contesto ROS prima degli stop), e il server MCP, alla
   chiusura, interrompe i `ros2_move_for` in corso e invia `ros2_estop`. Prima il
   controller CHAMP restava con l'ultimo `cmd_vel` e il robot continuava a muoversi.
+- Crash del server MCP (`Napi::Error: Invalid argument`, SIGABRT, poi
+  `MCP error -32000: Connection closed` nell'agente): `EntityCache` del transport
+  locale distruggeva la subscription dentro la sua stessa callback (snapshot e
+  profondità leggono un solo messaggio). Ora la distruzione è rimandata con
+  `setImmediate`; 160 chiamate snapshot/profondità/movimento senza crash.
+- Azioni ROS nel transport locale: `sendActionGoal` usava una firma di
+  `ActionClient.sendGoal` a callback che rclnodejs 1.8 non ha (e passava la classe
+  invece del nome del tipo), quindi `ros2_action_goal` non arrivava mai al
+  risultato. Ora usa goal handle e `getResult()`, restituisce lo stato reale
+  (`succeeded`, `aborted`, `canceled`, `rejected`), ha un timeout configurabile
+  (default 600 s, poi annulla il goal) e `cancelAllActionGoals()`.
+- `cancelNavigation` (core) e `ros2_estop` che annulla la navigazione; nuovo tool
+  `ros2_list_actions`.
+- Posti con nome: `AGENTICROS_PLACES_PATH` per usare un file per mappa, campo
+  `description`; `skillPaths` relativi al file di config.
+- Server MCP orfani: se il client terminava senza segnale (kill, crash) il server
+  restava vivo con il suo nodo ROS. Ora si chiude quando lo stdin si chiude, dopo
+  l'estop.
+- `agenticros_explore` svuotava la lista dei goal recenti a fine azione: con una
+  frontiera per azione riproponeva sempre la stessa frontiera irraggiungibile
+  (dietro il divano). Ora ricorda gli ultimi 16 goal tra un'azione e l'altra.
 
 ## Latenza
 

@@ -33,6 +33,13 @@ fi
 
 export AGENTICROS_CONFIG_PATH="${AGENTICROS_CONFIG_PATH:-${workspace_dir}/config/agenticros.json}"
 
+# Named places (rooms) of the simulated world, used when Nav2 runs
+# (go2_sim.launch.py nav:=map). GO2_WORLD must match the launched world.
+places_file="${workspace_dir}/src/go2_sim_worlds/config/places/${GO2_WORLD:-house}.json"
+if [[ -z "${AGENTICROS_PLACES_PATH:-}" && -f "${places_file}" ]]; then
+  export AGENTICROS_PLACES_PATH="${places_file}"
+fi
+
 # Defaults for the Go2 Gazebo simulation (ZED X camera, ~110 deg HFOV).
 export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/slam/zed_x_driver/depth_distances}"
 export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-110}"
