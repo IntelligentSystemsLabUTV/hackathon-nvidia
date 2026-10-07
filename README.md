@@ -1,5 +1,18 @@
 # dua-template
 
+
+cd ~/workspace
+export DISPLAY=:0                     # solo se vuoi la GUI di Gazebo
+pkill -9 -f "[g]z sim"; pkill -9 -f "[d]ua_component_container"   # eventuali processi orfani di sessioni precedenti
+source install/setup.zsh
+
+# CON mappa (Nav2 + AMCL, stanze note)
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=map
+
+# oppure SENZA mappa (Nav2 + SLAM + esplorazione a frontiere)
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=slam
+
+
 GitHub template repositories for projects based on the Distributed Unified Architecture.
 
 See [`dua-template.md`](dua-template.md) for more information.

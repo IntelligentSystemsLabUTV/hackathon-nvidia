@@ -39,16 +39,20 @@
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
+# Cameras nothing uses (right ZED, side cameras): lazy, so Gazebo does not
+# render them unless someone subscribes. Rendering is the bottleneck in the house.
 - ros_topic_name: "/dottorcane/slam/zed_x_driver/right/image_rect_color"
   gz_topic_name: "/dottorcane/slam/zed_x_driver/right/image_rect_color/image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
+  lazy: true
 - ros_topic_name: "/dottorcane/slam/zed_x_driver/right/camera_info"
   gz_topic_name: "/dottorcane/slam/zed_x_driver/right/image_rect_color/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
+  lazy: true
 - ros_topic_name: "/dottorcane/slam/zed_x_driver/depth_distances"
   gz_topic_name: "/dottorcane/slam/zed_x_driver/left/sd/image_rect_color/depth_image"
   ros_type_name: "sensor_msgs/msg/Image"
@@ -73,18 +77,22 @@
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
+  lazy: true
 - ros_topic_name: "/dottorcane/sensors/left_camera_driver/camera_info"
   gz_topic_name: "/dottorcane/sensors/left_camera/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
+  lazy: true
 - ros_topic_name: "/dottorcane/sensors/right_camera_driver/image_rect_color"
   gz_topic_name: "/dottorcane/sensors/right_camera/image_rect_color"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
+  lazy: true
 - ros_topic_name: "/dottorcane/sensors/right_camera_driver/camera_info"
   gz_topic_name: "/dottorcane/sensors/right_camera/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
+  lazy: true

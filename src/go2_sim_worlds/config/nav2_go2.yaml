@@ -56,7 +56,9 @@ amcl:
     update_min_d: 0.1
     save_pose_rate: 0.5
     tf_broadcast: true
-    transform_tolerance: 1.0
+    # Scans come from the depth camera at ~1-2 Hz with multi-second gaps in the
+    # house: map->odom must stay valid between them or the controller aborts.
+    transform_tolerance: 3.0
     do_beamskip: false
     # The launch file sets initial_pose from the spawn pose.
     set_initial_pose: true
