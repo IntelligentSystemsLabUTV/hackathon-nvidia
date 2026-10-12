@@ -1,6 +1,6 @@
 # Piano: percezione senza YOLO (solo modello vision) e aggiornamento di YOLO
 
-> **Stato: implementato** il 12 ottobre 2026 (diff applicato, configurazione e documentazione aggiornate). Riepilogo delle modifiche: [CHANGELOG_PERCEZIONE_VLM.md](CHANGELOG_PERCEZIONE_VLM.md). Questo documento resta come riferimento del metodo e delle misure.
+> **Stato: implementato** il 12 ottobre 2026 (diff applicato, configurazione e documentazione aggiornate). Riepilogo delle modifiche: [CHANGELOG_PERCEZIONE_VLM.md](CHANGELOG_PERCEZIONE_VLM.md). Questo documento resta come riferimento del metodo e delle misure. Dopo l'implementazione il default è diventato `NEBIUS_PERCEPTION=vlm` (senza YOLO); dove qui sotto si legge "`yolo` (default)" vale la scelta iniziale del piano.
 
 Piano operativo per l'agente che implementa. Nasce da uno studio con prove in simulazione (12 ottobre 2026). Base: repo `751073b`, submodule `tools/agenticros` `fbcb9a7`.
 
@@ -67,11 +67,13 @@ Script e risultati sono in [`scripts/vision_eval/`](../scripts/vision_eval/READM
 
 ## 3. Risultati
 
+Nelle tabelle il grassetto indica il valore migliore di ogni colonna; "in uso" segna la configurazione adottata.
+
 ### 3.1 Modelli vision disponibili sulla chiave Nebius
 
 | Modello | Immagini | Box (test sintetico) | Latenza | Note |
 |---|---|---|---|---|
-| `openbmb/MiniCPM-V-4_5` | sì | y sbagliata | 0,5 s | attuale; $0,66/$1,11 per M token |
+| `openbmb/MiniCPM-V-4_5` | sì | y sbagliata | **0,5 s** | attuale; $0,66/$1,11 per M token |
 | `moonshotai/Kimi-K2.6` | sì | esatto | 0,7 s | **thinking attivo per default**: disattivarlo con `chat_template_kwargs: {thinking: false}`. `reasoning_effort: "none"` NON funziona su K2.6. $0,95/$4,00 |
 | `deepseek-ai/DeepSeek-V4.1-Flash` | sì | esatto | mediana 1,9 s, **p90 23–29 s** | latenza instabile, escluso |
 | `moonshotai/Kimi-K3` | sì | esatto | 22 s sotto carico | lento, $3/$15, escluso |
@@ -87,21 +89,21 @@ Prezzi da un aggregatore terzo (ottobre 2026), da ricontrollare.
 
 | Configurazione | Trovati | Falsi pos. | Bearing med / p80 | IoU med | Distanza ok | Token in |
 |---|---|---|---|---|---|---|
-| MiniCPM 9 colonne 768 (**produzione**, parser attuale) | 52% | 4% | 3,9° / 7,3° | — | 70% | ~400 |
-| MiniCPM 9 colonne 768 + parser robusto | 63% | 7% | 3,9° / 7,1° | — | 69% | ~400 |
+| MiniCPM 9 colonne 768 (produzione, parser attuale) | 52% | 4% | 3,9° / 7,3° | — | 70% | **~400** |
+| MiniCPM 9 colonne 768 + parser robusto | 63% | 7% | 3,9° / 7,1° | — | 69% | **~400** |
 | MiniCPM 9 colonne 1344 + parser robusto | 65% | 5% | 4,2° / 8,2° | — | 70% | ~660 |
 | MiniCPM griglia 9×5 (768 / 1344) | 71% | 27% / 21% | 3,9–5,2° / 13° | 0,13–0,19 | 43–51% | — |
 | MiniCPM bbox 0–1000 (768 / 1344) | 80–82% | 12–14% | 5,0° / 11–12° | 0,13 | 55–60% | — |
 | MiniCPM punto 1344 | 79% | 11% | 5,7° / 12,5° | punto sull'oggetto 26% | 46% | — |
 | Gemma-3-27B bbox 1280 | 77% | 5% | 9,7° / 21° | 0,11 | 53% | — |
 | DeepSeek-V4.1-Flash bbox 1280 | 70% | 4% | 0,3° / 1,0° | 0,81 | 89% | ~840 |
-| Kimi-K2.6 bbox **0–1000** 1280 | 85% | 2% | 0,2° / 1,2° | 0,74 | 72% | ~1400 |
-| Kimi-K2.6 bbox **pixel** 1280 | 84% | 5% | 6,9° / 45° | 0,13 | 53% | — |
-| Kimi-K2.6 bbox **frazioni** 768 | 80% | 2% | 0,2° / 0,9° | 0,91 | 84% | ~675 |
-| Kimi-K2.6 bbox **frazioni 1024** | **85%** | **2%** | **0,2° / 0,7°** | **0,91** | **90%** | ~1000 |
+| Kimi-K2.6 bbox 0–1000 1280 | 85% | **2%** | 0,2° / 1,2° | 0,74 | 72% | ~1400 |
+| Kimi-K2.6 bbox pixel 1280 | 84% | 5% | 6,9° / 45° | 0,13 | 53% | — |
+| Kimi-K2.6 bbox frazioni 768 | 80% | **2%** | 0,2° / 0,9° | 0,91 | 84% | ~675 |
+| Kimi-K2.6 bbox frazioni 1024 | 85% | **2%** | 0,2° / 0,7° | 0,91 | **90%** | ~1000 |
 | Kimi-K2.6 bbox frazioni 1280 | 82% | 5% | 0,2° / 0,8° | 0,91 | 86% | ~1420 |
-| Kimi-K2.6 bbox frazioni 1920 | 80% | 11% | 0,1° / 0,5° | 0,93 | 86% | ~2900 |
-| **Kimi-K2.6 prompt finale 1024** (json_schema + porte) | **86%** | 4% | 0,2° / 0,9° | 0,90 | 88% | ~1060 |
+| Kimi-K2.6 bbox frazioni 1920 | 80% | 11% | **0,1° / 0,5°** | **0,93** | 86% | ~2900 |
+| Kimi-K2.6 prompt finale 1024 (json_schema + porte) — **in uso** | **86%** | 4% | 0,2° / 0,9° | 0,90 | 88% | ~1060 |
 
 Conclusioni:
 
@@ -121,9 +123,9 @@ Conclusioni:
 
 | Configurazione | Mediana | p90 | JSON validi |
 |---|---|---|---|
-| MiniCPM colonne 768 (attuale) | 0,96 s | 1,05 s | 17/20 |
-| Kimi-K2.6 frazioni 1024 | 1,00 s | 1,20 s | 20/20 |
-| Kimi-K2.6 frazioni 1024 + json_schema | 0,99 s | 1,16 s | 20/20 |
+| MiniCPM colonne 768 (attuale) | **0,96 s** | **1,05 s** | 17/20 |
+| Kimi-K2.6 frazioni 1024 | 1,00 s | 1,20 s | **20/20** |
+| Kimi-K2.6 frazioni 1024 + json_schema | 0,99 s | 1,16 s | **20/20** |
 
 A ciclo chiuso, senza YOLO: percezione 1,7–1,9 s per passo (vision 1,2–1,3 s), cioè come oggi con YOLO e vision in parallelo. Costo stimato con Kimi: ~$0,0015 per chiamata, $0,02–0,08 per compito.
 
@@ -131,8 +133,8 @@ A ciclo chiuso, senza YOLO: percezione 1,7–1,9 s per passo (vision 1,2–1,3 s
 
 | Configurazione | Trovati | Falsi pos. | Errore di bearing max | Errore di distanza max |
 |---|---|---|---|---|
-| MiniCPM colonne 768 (produzione) | **2/14** | 0 | 5,4° | 0,57 m |
-| Kimi-K2.6 frazioni 768 / 1280 / 1920 | **14/14** | 0 | 0,4° | 0,03 m |
+| MiniCPM colonne 768 (produzione) | 2/14 | **0** | 5,4° | 0,57 m |
+| Kimi-K2.6 frazioni 768 / 1280 / 1920 | **14/14** | **0** | **0,4°** | **0,03 m** |
 
 MiniCPM l'idrante lo vedeva in 12 frame su 12: 10 risposte erano JSON con una `}` in più, scartate dal parser.
 
@@ -143,8 +145,8 @@ MiniCPM l'idrante lo vedeva in 12 frame su 12: 10 risposte erano JSON con una `}
 | Attuale: YOLOv8n, poi MiniCPM colonne, parser attuale | 57% (solo il 26% con box YOLO) |
 | Attuale con parser corretto | 69% |
 | YOLO26s + MiniCPM con parser corretto | 74% |
-| YOLO26s + Kimi-K2.6 | 88% |
-| **Solo Kimi-K2.6 (modalità vlm)** | **87%, sempre con box preciso** |
+| YOLO26s + Kimi-K2.6 | **88%** |
+| Solo Kimi-K2.6 (modalità vlm) | 87%, sempre con box preciso |
 
 ### 3.6 Prove a ciclo chiuso del prototipo (sim headless, posa reale usata solo per verificare)
 
@@ -345,12 +347,12 @@ Confronto su questi 56 frame della casa, con la stessa pipeline a riquadri del p
 
 | Modello | COCO mAP (Ultralytics) | Recall casa | Falsi pos. | s/frame a riquadri | Note |
 |---|---|---|---|---|---|
-| YOLOv8n (attuale) | 37,3 | 36% | 26 | 0,47 | frigo 1/16, divano 0/20, TV 0/21 |
-| YOLO11n | 39,5 | 37% | 26 | 0,46 | |
+| YOLOv8n (attuale) | 37,3 | 36% | **26** | 0,47 | frigo 1/16, divano 0/20, TV 0/21 |
+| YOLO11n | 39,5 | 37% | **26** | 0,46 | |
 | YOLO11s | 47,0 | 44% | 29 | 1,06 | |
-| YOLO26n | 40,9 | 39% | 28 | 0,43 | |
-| **YOLO26s** | 48,6 | **57%** | 33 | **0,99** | **consigliato** |
-| YOLO26m | 53,1 | 53% | 34 | 2,76 | più lento, non meglio qui |
+| YOLO26n | 40,9 | 39% | 28 | **0,43** | |
+| YOLO26s | 48,6 | **57%** | 33 | 0,99 | **consigliato** |
+| YOLO26m | **53,1** | 53% | 34 | 2,76 | più lento, non meglio qui |
 | YOLOE-26s/m (open-vocabulary, 18 classi della casa) | — | 38–43% su 15 categorie | 69–95 | 1,2–3,1 | armadio 0/5, bilanciere 0/11: non conviene |
 
 **Raccomandazione per la versione con YOLO**: YOLO26s (Ultralytics, gennaio 2026, NMS-free; in CPU ONNX la versione n è fino al 43% più veloce di YOLO11n).

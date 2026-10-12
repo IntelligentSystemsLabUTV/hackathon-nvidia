@@ -12,11 +12,11 @@ I file grezzi (`results/`, `data/`, log) restano solo in locale e non sono in Gi
 | MiniCPM-V, bbox | 80–82% | 12–14% | 5,0° | 0,13 | 55–60% |
 | Gemma-3-27B, bbox | 77% | 5% | 9,7° | 0,11 | 53% |
 | DeepSeek-V4.1-Flash, bbox (p90 latenza 23–29 s) | 70% | 4% | 0,3° | 0,81 | 89% |
-| Kimi-K2.6, bbox 0–1000 | 85% | 2% | 0,2° | 0,74 | 72% |
-| Kimi-K2.6, bbox in frazioni, 1024 px | 85% | 2% | 0,2° | 0,91 | 90% |
-| **Kimi-K2.6, prompt finale (json_schema + porte), 1024 px** | **86%** | **4%** | **0,2°** | **0,90** | **88%** |
+| Kimi-K2.6, bbox 0–1000 | 85% | **2%** | **0,2°** | 0,74 | 72% |
+| Kimi-K2.6, bbox in frazioni, 1024 px | 85% | **2%** | **0,2°** | **0,91** | **90%** |
+| Kimi-K2.6, prompt finale (json_schema + porte), 1024 px — **in uso** | **86%** | 4% | **0,2°** | 0,90 | 88% |
 
-Latenza in sequenza: MiniCPM 0,96 s, Kimi-K2.6 a 1024 px 0,99 s.
+Il grassetto indica il migliore di ogni colonna. Latenza in sequenza: MiniCPM 0,96 s, Kimi-K2.6 a 1024 px 0,99 s.
 
 ## ldc25 (idrante 1,4–9 m e semaforo, 14 positivi)
 
@@ -28,7 +28,7 @@ MiniCPM-V a colonne 2/14 (10 risposte scartate dal vecchio parser); Kimi-K2.6 14
 |---|---|---|
 | YOLOv8n (attuale) | 36% | 0,47 s |
 | YOLO11n / YOLO11s | 37% / 44% | 0,46 / 1,06 s |
-| YOLO26n / **YOLO26s** / YOLO26m | 39% / **57%** / 53% | 0,43 / 0,99 / 2,76 s |
+| YOLO26n / YOLO26s (consigliato) / YOLO26m | 39% / **57%** / 53% | **0,43** / 0,99 / 2,76 s |
 | YOLOE-26s / 26m (15 categorie, anche non COCO) | 38% / 43% | 1,17 / 3,11 s |
 
 ## Corse a ciclo chiuso (versione finale)

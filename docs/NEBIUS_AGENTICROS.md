@@ -29,8 +29,8 @@ Secondo terminale:
 ```bash
 cd ~/workspace
 ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
-# senza YOLO: il modello vision localizza il bersaglio
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
+# con YOLO per i bersagli COCO (di default solo il modello vision)
+NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
 ```
 
 La richiesta viene prima classificata da Nemotron:
@@ -49,8 +49,8 @@ Due modalità, scelte con `NEBIUS_PERCEPTION` (dettagli e misure in [CHANGELOG_P
 
 | `NEBIUS_PERCEPTION` | Chi localizza il bersaglio |
 |---|---|
-| `yolo` (default) | YOLO a riquadri per i bersagli COCO; il modello vision per gli altri e quando YOLO non trova nulla |
-| `vlm` | solo il modello vision: YOLO non viene caricato né scaricato |
+| `vlm` (default) | solo il modello vision: YOLO non viene caricato né scaricato |
+| `yolo` | YOLO a riquadri per i bersagli COCO; il modello vision per gli altri e quando YOLO non trova nulla |
 
 - **Modello vision**: default `moonshotai/Kimi-K2.6` (thinking disattivato con `chat_template_kwargs: {thinking: false}`). Riceve il frame ridotto a 1024×576, **senza overlay**, e restituisce in JSON strutturato (`response_format` json_schema) il **bounding box** del bersaglio in frazioni 0–1 dell'immagine, più le porte verso altre stanze. Nella casa: 86% dei bersagli trovati, errore di bearing mediano 0,2°, IoU 0,90 con la verità a terra; l'idrante di ldc25 fino a 9 m 14 volte su 14.
 

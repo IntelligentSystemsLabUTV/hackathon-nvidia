@@ -4,15 +4,15 @@
 
 ## In breve
 
-- Nuova modalità **senza YOLO**: `NEBIUS_PERCEPTION=vlm`. Il modello vision localizza ogni bersaglio; YOLO non viene caricato né scaricato. `NEBIUS_PERCEPTION=yolo` (default) resta la versione con YOLO.
+- Nuova modalità **senza YOLO**, ora il **default**: `NEBIUS_PERCEPTION=vlm`. Il modello vision localizza ogni bersaglio; YOLO non viene caricato né scaricato. `NEBIUS_PERCEPTION=yolo` attiva la versione con YOLO.
 - Il modello vision di default diventa **`moonshotai/Kimi-K2.6`**, che restituisce direttamente il **bounding box** del bersaglio. Le 9 colonne restano solo per i modelli che non sanno dare coordinate, come MiniCPM-V.
 - Corretto un **bug del parser JSON** che scartava molte risposte del modello vision.
 - Nuove **guardie contro gli arrivi falsi**, utili in entrambe le modalità.
 - Per la versione con YOLO, **YOLO26s** è un aggiornamento consigliato che non richiede modifiche al codice.
 
 ```bash
-./scripts/run_nebius_agent.sh "vai vicino al frigorifero"                        # con YOLO
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "vai vicino al frigorifero"  # senza YOLO
+./scripts/run_nebius_agent.sh "vai vicino al frigorifero"                         # senza YOLO (default)
+NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "vai vicino al frigorifero"  # con YOLO
 ```
 
 > **Da fare a mano**: se nel tuo `.env` c'è ancora `NEBIUS_VISION_MODEL=openbmb/MiniCPM-V-4_5`, cambialo in `moonshotai/Kimi-K2.6` (oppure toglilo: è il nuovo default). Le variabili di `.env` vincono sul default.
@@ -44,10 +44,12 @@ Risultati sulle stesse 184 domande:
 
 | Variante | Bersagli trovati | Falsi positivi | Errore di direzione (mediana) |
 |---|---|---|---|
-| MiniCPM, 9 colonne (prima) | 52% | 4% | 3,9° |
+| MiniCPM, 9 colonne (prima) | 52% | **4%** | 3,9° |
 | MiniCPM, griglia 9×5 | 71% | 21–27% | 3,9–5,2° |
 | MiniCPM, bbox (768 o 1344 px) | 80–82% | 12–14% | 5° |
-| **Kimi-K2.6, bbox, 1024 px** | **86%** | **4%** | **0,2°** |
+| Kimi-K2.6, bbox, 1024 px — **in uso** | **86%** | **4%** | **0,2°** |
+
+In grassetto il valore migliore di ogni colonna.
 
 - **Con MiniCPM le colonne sono la scelta migliore**, perché il modello non sa dare coordinate: i suoi box hanno IoU mediano 0,13. La griglia è peggio e più complicata, e aumentare la risoluzione non aiuta.
 - **Per la versione senza YOLO serve un modello che dia direttamente il box.** Sulla chiave Nebius l'unico preciso e con latenza stabile è `moonshotai/Kimi-K2.6`:
@@ -82,8 +84,8 @@ Confronto sui 68 bersagli COCO della casa (stesse domande):
 | Prima: YOLOv8n, poi MiniCPM a colonne, parser vecchio | 57% (solo il 26% con un box preciso) |
 | Prima, con il parser corretto | 69% |
 | YOLO26s + MiniCPM | 74% |
-| YOLO26s + Kimi-K2.6 | 88% |
-| **Solo Kimi-K2.6 (senza YOLO)** | **87%, sempre con box preciso** |
+| YOLO26s + Kimi-K2.6 | **88%** |
+| Solo Kimi-K2.6 (senza YOLO) | 87%, sempre con box preciso |
 
 ## 2. Bug corretto: il parser JSON
 
@@ -132,9 +134,9 @@ Il progetto usa **YOLOv8n** (gennaio 2023), in ONNX su CPU, con la detection a r
 
 | Modello | Bersagli COCO trovati nella casa | Tempo per frame |
 |---|---|---|
-| YOLOv8n (attuale) | 36% | 0,47 s |
+| YOLOv8n (attuale) | 36% | **0,47 s** |
 | YOLO11s | 44% | 1,06 s |
-| **YOLO26s** (gennaio 2026) | **57%** | 0,99 s |
+| YOLO26s (gennaio 2026, consigliato) | **57%** | 0,99 s |
 
 YOLO26s funziona senza toccare il codice, a una condizione: va esportato con `end2end=False`. L'export di default dà un output `[1, 300, 6]` che il decoder rifiuta; con `end2end=False` l'output è `[1, 84, 8400]`, come YOLOv8. Ultralytics è già installato nel container:
 
@@ -157,7 +159,7 @@ File in `tools/agenticros/packages/agenticros-nebius/src/`:
 | `perception.ts` | `describe` usa il box o le colonne secondo il profilo; tutte le chiamate al modello vision passano da `ask()` (timeout 20 s, 1 retry, profilo); attributi del bersaglio nel prompt; `verifyCandidate` con modalità forzata per gli avvistamenti del modello vision |
 | `policy.ts` | `localization: "box" \| "column"` al posto di `source` per le regole geometriche (un box del modello vision vale come uno di YOLO); `occluded`; `depthConsistentWithBox`; passo massimo a distanza ignota; regola `face_target`; passo minimo 1 m da lontano |
 | `agent.ts` | modalità `yolo`/`vlm`; verifica sul ritaglio degli avvistamenti del modello vision; guardia di occlusione dopo la lettura della profondità; in modalità `vlm` nessun movimento se il modello vision non risponde, compito interrotto dopo 3 fallimenti |
-| `index.ts` | `NEBIUS_PERCEPTION`, `NEBIUS_VISION_GROUNDING`, `NEBIUS_CAMERA_HEIGHT_M`; default `NEBIUS_VISION_MODEL=moonshotai/Kimi-K2.6`; riga di avvio `[Perception] mode=… vision=… grounding=… width=…` |
+| `index.ts` | `NEBIUS_PERCEPTION` (default `vlm`), `NEBIUS_VISION_GROUNDING`, `NEBIUS_CAMERA_HEIGHT_M`; default `NEBIUS_VISION_MODEL=moonshotai/Kimi-K2.6`; riga di avvio `[Perception] mode=… vision=… grounding=… width=…` |
 | `__tests__/` | `vision.test.ts` nuovo; `policy.test.ts` con i casi nuovi (24 test) |
 
 Nel repo: `.env.example`, `scripts/run_nebius_agent.sh` (solo un commento), `src/README.md`, `docs/NEBIUS_AGENTICROS.md`, `CLAUDE.md` e `tools/agenticros/CLAUDE.md`.

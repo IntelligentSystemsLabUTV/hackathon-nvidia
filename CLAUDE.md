@@ -1,6 +1,6 @@
 # hackathon-nvidia
 
-Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, Kimi-K2.6 localizza i bersagli (bounding box) e descrive la scena, YOLO locale aiuta sui bersagli COCO (`NEBIUS_PERCEPTION=yolo`, default; `vlm` = senza YOLO, vedi `docs/CHANGELOG_PERCEZIONE_VLM.md`). Il progetto è un workspace DUA (dotX Automation), ROS 2 Jazzy.
+Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, Kimi-K2.6 localizza i bersagli (bounding box) e descrive la scena, di default senza YOLO (`NEBIUS_PERCEPTION=vlm`); con `NEBIUS_PERCEPTION=yolo` YOLO locale aiuta sui bersagli COCO (vedi `docs/CHANGELOG_PERCEZIONE_VLM.md`). Il progetto è un workspace DUA (dotX Automation), ROS 2 Jazzy.
 
 Documentazione dettagliata: `src/README.md` (flusso completo), `docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md`. Docs e messaggi all'utente in italiano, codice e commenti in inglese.
 

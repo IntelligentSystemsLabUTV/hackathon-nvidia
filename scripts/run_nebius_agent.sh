@@ -40,8 +40,9 @@ if [[ -z "${AGENTICROS_PLACES_PATH:-}" && -f "${places_file}" ]]; then
   export AGENTICROS_PLACES_PATH="${places_file}"
 fi
 
-# Perception: NEBIUS_PERCEPTION=vlm runs without YOLO (the vision model localizes
-# targets), e.g. NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "vai vicino al frigorifero".
+# Perception: by default the vision model localizes targets without YOLO
+# (NEBIUS_PERCEPTION=vlm). NEBIUS_PERCEPTION=yolo adds tiled YOLO for COCO targets,
+# e.g. NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "vai vicino al frigorifero".
 
 # Defaults for the Go2 Gazebo simulation (ZED X camera, ~110 deg HFOV).
 export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/slam/zed_x_driver/depth_distances}"

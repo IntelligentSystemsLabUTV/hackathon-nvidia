@@ -45,28 +45,28 @@ La percezione si sceglie con `NEBIUS_PERCEPTION`:
 
 | Modalità | Comando | Chi localizza il bersaglio |
 |---|---|---|
-| con YOLO (default) | `./scripts/run_nebius_agent.sh "…"` | YOLO a riquadri per i bersagli COCO, il modello vision per gli altri e come ripiego |
-| senza YOLO | `NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "…"` | solo il modello vision (Kimi-K2.6, bounding box) |
-| con YOLO26s | `AGENTICROS_YOLOV8_MODEL=~/.agenticros/models/yolo26s.onnx ./scripts/run_nebius_agent.sh "…"` | come la prima, con un YOLO più recente (export in [`docs/CHANGELOG_PERCEZIONE_VLM.md`](docs/CHANGELOG_PERCEZIONE_VLM.md#4-yolo-versione-con-yolo)) |
-| con MiniCPM-V | `NEBIUS_VISION_MODEL=openbmb/MiniCPM-V-4_5 NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "…"` | modello vision a 9 colonne, per confronto (meno preciso) |
+| senza YOLO (default) | `./scripts/run_nebius_agent.sh "…"` | solo il modello vision (Kimi-K2.6, bounding box) |
+| con YOLO | `NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "…"` | YOLO a riquadri per i bersagli COCO, il modello vision per gli altri e come ripiego |
+| con YOLO26s | `NEBIUS_PERCEPTION=yolo AGENTICROS_YOLOV8_MODEL=~/.agenticros/models/yolo26s.onnx ./scripts/run_nebius_agent.sh "…"` | come la precedente, con un YOLO più recente (export in [`docs/CHANGELOG_PERCEZIONE_VLM.md`](docs/CHANGELOG_PERCEZIONE_VLM.md#4-yolo-versione-con-yolo)) |
+| con MiniCPM-V | `NEBIUS_VISION_MODEL=openbmb/MiniCPM-V-4_5 ./scripts/run_nebius_agent.sh "…"` | modello vision a 9 colonne, per confronto (meno preciso) |
 
 ```bash
 cd ~/workspace
 source install/setup.zsh
 
 # casa (world:=house, nav:=none)
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "vai vicino al frigorifero"
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "vai vicino al cestino della spazzatura"
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "vai vicino all'armadio"
-./scripts/run_nebius_agent.sh "vai vicino al frigorifero"                    # stessa prova con YOLO
+./scripts/run_nebius_agent.sh "vai vicino al frigorifero"
+./scripts/run_nebius_agent.sh "vai vicino al cestino della spazzatura"
+./scripts/run_nebius_agent.sh "vai vicino all'armadio"
+NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "vai vicino al frigorifero"   # stessa prova con YOLO
 ./scripts/run_nebius_agent.sh "Guarda davanti al robot e descrivi gli ostacoli. Non muovere il robot."
 
 # casa con nav:=map: prima Nav2 fino alla stanza, poi l'avvicinamento visivo
 ./scripts/run_nebius_agent.sh "vai in camera da letto"
 
 # ldc25
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
 ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
+NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "cerca l'idrante rosso e vacci vicino"
 
 # fermare il robot a mano
 ros2 topic pub --once /dottorcane/go2_control/cmd_vel geometry_msgs/msg/Twist "{}"

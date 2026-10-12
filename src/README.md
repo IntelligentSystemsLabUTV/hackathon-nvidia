@@ -20,7 +20,7 @@ AgenticROS (MCP) ── ros2_camera_snapshot ─► Kimi-K2.6 su Nebius: box, sc
 ```
 
 1. Nemotron traduce la richiesta in un compito: `approach` (trova un oggetto e avvicinati), `describe` (guarda e descrivi), `move` (movimenti espliciti) o `stop`.
-2. A ogni passo AgenticROS acquisisce un frame e il modello vision (default Kimi-K2.6 su Nebius) restituisce il bounding box del bersaglio, la descrizione della scena e le porte verso altre stanze. Con `NEBIUS_PERCEPTION=yolo` (default) per i bersagli COCO lavora in parallelo anche YOLO (`@agenticros/object-detection`) su riquadri del frame 1920×1080; con `NEBIUS_PERCEPTION=vlm` YOLO non viene usato. Il colore ("rosso") e gli avvistamenti dubbi vengono ricontrollati sul ritaglio. Perché e con quali misure: [`docs/CHANGELOG_PERCEZIONE_VLM.md`](../docs/CHANGELOG_PERCEZIONE_VLM.md).
+2. A ogni passo AgenticROS acquisisce un frame e il modello vision (default Kimi-K2.6 su Nebius) restituisce il bounding box del bersaglio, la descrizione della scena e le porte verso altre stanze. Di default (`NEBIUS_PERCEPTION=vlm`) YOLO non viene usato; con `NEBIUS_PERCEPTION=yolo` per i bersagli COCO lavora in parallelo anche YOLO (`@agenticros/object-detection`) su riquadri del frame 1920×1080. Il colore ("rosso") e gli avvistamenti dubbi vengono ricontrollati sul ritaglio. Perché e con quali misure: [`docs/CHANGELOG_PERCEZIONE_VLM.md`](../docs/CHANGELOG_PERCEZIONE_VLM.md).
 3. `ros2_depth_distance` misura la distanza dentro il box del bersaglio e lo spazio libero nel corridoio davanti al robot. Se la profondità non è coerente con la posizione del box nell'immagine (un oggetto più vicino copre il bersaglio), la distanza viene considerata ignota e l'arrivo non viene dichiarato.
 4. Nemotron sceglie un'azione semantica; il controller calcola angoli e distanze, la limita (distanza di arresto, ostacoli) o la rifiuta, e in caso di risposta non valida usa una policy deterministica.
 5. `ros2_move_for` esegue il movimento con i limiti di sicurezza di AgenticROS. Il ciclo si ripete fino all'arrivo (bersaglio centrato e a ≤ 1,35 m), al fallimento (esplorazioni esaurite, nessuna direzione libera, percorso bloccato) o ai limiti di passi/tempo. All'uscita, anche con `Ctrl-C`, viene sempre inviato `ros2_estop`.
@@ -159,8 +159,8 @@ Con `nav:=map` l'agente conosce le stanze della casa (`go2_sim_worlds/config/pla
 Con Kimi-K2.6 qualunque oggetto nominabile può essere un bersaglio (frigorifero, cestino, armadio, idrante...), con la stessa precisione dei box di YOLO. Nella modalità `yolo` le classi COCO presenti nel mondo (in `ldc25` `fire hydrant`, `traffic light`, `stop sign`; in `house` `refrigerator`, `chair`, `couch`, `dining table`, `tv`, `bed`) passano anche da YOLO, che però nella casa riconosce solo una parte dei mobili renderizzati.
 
 ```bash
-# stessa richiesta, senza YOLO
-NEBIUS_PERCEPTION=vlm ./scripts/run_nebius_agent.sh "vai vicino all'armadio"
+# stessa richiesta, con YOLO
+NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "vai vicino all'armadio"
 ```
 
 Su stderr il log mostra ogni passo: `[Goal]` (compito interpretato), `[Step N]` (bersaglio, angolo, distanza, spazio libero), `[Scene]`, `[Decision]` (scelta di Nemotron → movimento eseguito, o rifiuto del controller) e `[Timing]`. Su stdout esce solo la risposta finale in italiano.
@@ -174,7 +174,7 @@ Su stderr il log mostra ogni passo: `[Goal]` (compito interpretato), `[Step N]` 
 | `NEBIUS_API_KEY` | — | Chiave Token Factory (obbligatoria) |
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1/` | Endpoint OpenAI-compatible |
 | `NEBIUS_VISION_MODEL` | `moonshotai/Kimi-K2.6` | Modello vision: box del bersaglio, scena, verifiche sul ritaglio. `openbmb/MiniCPM-V-4_5` funziona ancora, con le 9 colonne (meno preciso) |
-| `NEBIUS_PERCEPTION` | `yolo` | `yolo` = YOLO per i bersagli COCO più modello vision; `vlm` = solo modello vision, senza YOLO |
+| `NEBIUS_PERCEPTION` | `vlm` | `vlm` = solo modello vision, senza YOLO; `yolo` = YOLO per i bersagli COCO più modello vision |
 | `NEBIUS_VISION_GROUNDING` | dal modello | `box` o `columns`: forza il modo di localizzare per un modello vision non previsto |
 | `NEBIUS_CAMERA_HEIGHT_M` | `0.385` | Altezza della camera da terra, per riconoscere le letture di profondità coperte da un oggetto più vicino |
 | `NEBIUS_REASONING_MODEL` | `nvidia/Nemotron-3_5-Lightning` | Modello che ragiona e sceglie le azioni |
