@@ -35,3 +35,10 @@ __pycache__/
 # .vscode/
 
 docs/index.html
+# Vision evaluation: captured frames, depth and masks (~150 MB, regenerable with capture.py / gt2.py)
+/scripts/vision_eval/data/frames/
+/scripts/vision_eval/data/masks/
+/scripts/vision_eval/data/extra_frames/
+/scripts/vision_eval/**/*.log
+/scripts/vision_eval/**/*.json
+/scripts/vision_eval/**/*.jsonl
