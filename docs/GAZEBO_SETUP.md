@@ -12,10 +12,12 @@ I package ROS sono direttamente sotto `src/`; i modelli del mondo sono in
 
 ## Build
 
-Dal root del workspace:
+Nel container DUA, dal root del workspace, con l'alias `cbuild` (non `colcon build`
+a mano: `cbuild` gira nella shell in cui `ros2init` ha già caricato l'underlay
+dua-utils, senza il quale i launch falliscono con `package 'dua_app_management' not found`):
 
 ```bash
-colcon build --symlink-install --packages-up-to ldc25-sim
+cbuild --packages-up-to ldc25-sim
 source install/setup.zsh
 ```
 

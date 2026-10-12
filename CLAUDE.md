@@ -16,7 +16,7 @@ docker compose down                                             # stop, dalla st
 ```
 
 - Per comandi non interattivi usa `docker exec <c> bash -ic '...'`: `.bashrc` chiama `ros2init`, che fa il source di jazzy, gazebo, ros_gz, **dua-utils** e `install/local_setup`.
-- **Non lanciare `colcon build` con il solo `/opt/ros/jazzy` sorgente.** `install/setup.*` perderebbe l'underlay dua-utils e i launch fallirebbero con `package 'dua_app_management' not found`. Builda da una shell `bash -ic` e usa l'alias `cbuild` (`colcon build --symlink-install --continue-on-error`).
+- **Non lanciare `colcon build` con il solo `/opt/ros/jazzy` sorgente.** `install/setup.*` perderebbe l'underlay dua-utils e i launch fallirebbero con `package 'dua_app_management' not found`. Builda da una shell `bash -ic` e usa l'alias `cbuild` (`colcon build --event-handlers console_direct+ --symlink-install --continue-on-error`).
 - Il layout di install è isolato (`install/<pkg>/share/<pkg>`).
 
 ## Struttura
