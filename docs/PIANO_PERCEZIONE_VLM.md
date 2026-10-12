@@ -1,6 +1,6 @@
 # Piano: percezione senza YOLO (solo modello vision) e aggiornamento di YOLO
 
-> **Stato: implementato** il 12 ottobre 2026 (diff applicato, configurazione e documentazione aggiornate). Riepilogo delle modifiche: [CHANGELOG_PERCEZIONE_VLM.md](CHANGELOG_PERCEZIONE_VLM.md). Questo documento resta come riferimento del metodo e delle misure. Dopo l'implementazione il default è diventato `NEBIUS_PERCEPTION=vlm` (senza YOLO); dove qui sotto si legge "`yolo` (default)" vale la scelta iniziale del piano.
+> **Stato: implementato** il 12 ottobre 2026 (diff applicato, configurazione e documentazione aggiornate). Riepilogo delle modifiche: [CHANGELOG.md](CHANGELOG.md). Questo documento resta come riferimento del metodo e delle misure. Dopo l'implementazione il default è diventato `NEBIUS_PERCEPTION=vlm` (senza YOLO); dove qui sotto si legge "`yolo` (default)" vale la scelta iniziale del piano.
 
 Piano operativo per l'agente che implementa. Nasce da uno studio con prove in simulazione (12 ottobre 2026). Base: repo `751073b`, submodule `tools/agenticros` `fbcb9a7`.
 

@@ -45,7 +45,7 @@ La richiesta viene prima classificata da Nemotron:
 
 ## Percezione
 
-Due modalità, scelte con `NEBIUS_PERCEPTION` (dettagli e misure in [CHANGELOG_PERCEZIONE_VLM.md](CHANGELOG_PERCEZIONE_VLM.md)):
+Due modalità, scelte con `NEBIUS_PERCEPTION` (dettagli e misure in [CHANGELOG.md](CHANGELOG.md)):
 
 | `NEBIUS_PERCEPTION` | Chi localizza il bersaglio |
 |---|---|
@@ -102,13 +102,15 @@ Prove (house, headless):
 
 Senza Nav2 (o con `nav:=slam`) l'agente non usa la mappa della casa (`src/go2_sim_worlds/maps/house_world_map.{pgm,yaml}`): una richiesta come "vai in camera da letto" diventa "trova il letto e avvicinati".
 
+Il giro di ricerca è fatto di rotazioni da 90° (5 rotazioni per un giro completo). La camera vede ~110° e sui frame della casa Kimi-K2.6 trova i bersagli anche al bordo dell'immagine (87% fra 45° e 55° dal centro), quindi ogni direzione cade entro ±45° in almeno una vista. Con i passi da 45° di prima un giro costava 9 rotazioni.
+
 Se il bersaglio non compare durante un giro completo, il controller (`policy.ts`) fa esplorare il robot:
 
 - durante il giro registra lo spazio libero davanti al robot per ogni direzione (heading stimato sommando le rotazioni eseguite, senza posa reale);
 - il modello vision indica anche porte o passaggi interni verso altre stanze; una porta conta solo se la riportano almeno due frame dello stesso giro (frame con più di 3 porte scartati: il modello sta tirando a indovinare);
 - sceglie prima le porte confermate, altrimenti la direzione più aperta (letture oltre 5 m contano uguale); penalizza quella da cui il robot arriva e scarta quelle trovate bloccate;
 - si gira, avanza fino a 2,5 m con i soliti limiti e rifà il giro da lì;
-- dopo 4 esplorazioni (8 con le frontiere di `nav:=slam`), o se nessuna direzione ha almeno 1,5 m liberi, termina con insuccesso.
+- dopo 7 esplorazioni (8 con le frontiere di `nav:=slam`), o se nessuna direzione ha almeno 1,5 m liberi, termina con insuccesso.
 
 **Falsi positivi.** Nella casa YOLO scambia il divano bianco per un letto (0,4–0,55) e il modello vision può "vedere" il bersaglio in un oggetto simile (con MiniCPM-V il letto, con Kimi una porta a soffietto per un armadio). Per questo:
 
@@ -116,8 +118,9 @@ Se il bersaglio non compare durante un giro completo, il controller (`policy.ts`
 - gli avvistamenti del modello vision sono ricontrollati sul ritaglio quando verrebbero confermati e prima dell'arrivo;
 - le segnalazioni deboli (solo modello vision, o YOLO sotto 0,8) contano solo se si ripetono nel frame successivo: fino ad allora giro ed esplorazione non vengono azzerati e `finish(success)` è rifiutato.
 - una segnalazione non confermata non chiude mai la ricerca: né come arrivo né come "percorso bloccato" (il modello vision ha visto un "letto" a 0,44 m che era il divano davanti al robot); il robot continua a cercare ed esplorare.
+- una segnalazione non confermata che sparisce due volte quando il robot si gira a guardarla, alla stessa direzione (±20°), viene ignorata finché il robot resta in quel punto (log `[Perception] ignoring the sighting`). Un divano "visto" come letto solo al bordo dell'immagine faceva girare il robot avanti e indietro per ~20 passi.
 
-**Limite noto.** Senza mappa la stanza giusta non è garantita. Nella casa la camera è a ~6 m dal punto di partenza, ma attraverso un passaggio stretto a sud-ovest (~2,3 m di spazio libero misurato), mentre verso +x c'è il soggiorno aperto (5–8 m): l'esplorazione tende a partire dalla parte sbagliata e le porte riportate dal modello vision sono rumorose. Nei test il robot esplorava e scartava i falsi positivi, ma non è arrivato al letto entro 2 esplorazioni.
+**Limite noto.** Senza mappa la stanza giusta non è garantita. Nella casa la camera è a ~6 m dal punto di partenza, ma attraverso un passaggio stretto a sud-ovest (~2,3 m di spazio libero misurato), mentre verso +x c'è il soggiorno aperto (5–8 m): l'esplorazione tende a partire dalla parte sbagliata e le porte riportate dal modello vision sono rumorose. Con i passi da 45° il robot non è arrivato al letto in 2 corse su 2 (80 passi esauriti). Con i passi da 90° è arrivato in 2 corse su 3 (17 e 18 passi, ~1 m dal letto, verificato sulla posa reale); nella terza ha esplorato verso est e si è arreso dopo 42 passi, con il budget di 4 esplorazioni allora in vigore.
 
 Nemotron vede `exploring` ed `explorations` nell'osservazione e chiama `explore`; se insiste con `search` dopo il giro, il controller lo rifiuta e la policy deterministica esegue l'esplorazione. I log `[Explore]` mostrano la fase, la direzione scelta e lo spazio libero misurato per ogni direzione.
 
@@ -138,7 +141,7 @@ Il planner delle missioni AgenticROS è a regole, senza LLM: esegue una lista fi
 ## Modifiche ad AgenticROS (submodule `tools/agenticros`)
 
 - `agenticros-nebius`: il vecchio flusso a un solo passo è sostituito dal ciclo (`agent.ts`, `perception.ts`, `policy.ts`, `robot.ts`, test in `__tests__/`).
-- `agenticros-nebius`, percezione: modalità `NEBIUS_PERCEPTION=yolo|vlm`, profili del modello vision e parser JSON robusto (`vision.ts`), box in frazioni con Kimi-K2.6, guardie contro gli arrivi falsi. Vedi [CHANGELOG_PERCEZIONE_VLM.md](CHANGELOG_PERCEZIONE_VLM.md).
+- `agenticros-nebius`, percezione: modalità `NEBIUS_PERCEPTION=yolo|vlm`, profili del modello vision e parser JSON robusto (`vision.ts`), box in frazioni con Kimi-K2.6, guardie contro gli arrivi falsi. Vedi [CHANGELOG.md](CHANGELOG.md).
 - `object-detection`: `detectClassTiled` (usato anche da `ros2_find_object`, che prima non trovava l'idrante a distanza) e correzione del clipping dei box.
 - `ros2_depth_distance`: parametri ROI `roi_*` negli adapter Claude Code/MCP, OpenClaw e Gemini.
 - Arresto sicuro con Ctrl-C: il transport locale rimuove l'handler SIGINT di rclnodejs (che chiudeva il contesto ROS prima degli stop), e il server MCP, alla chiusura, interrompe i `ros2_move_for` in corso e invia `ros2_estop`. Prima il controller CHAMP restava con l'ultimo `cmd_vel` e il robot continuava a muoversi.

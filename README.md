@@ -1,6 +1,6 @@
 # hackathon-nvidia
 
-Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, il modello vision (Kimi-K2.6) localizza i bersagli e descrive la scena, YOLO locale può aiutare sui bersagli COCO. Flusso completo: [`src/README.md`](src/README.md); simulazione: [`docs/GAZEBO_SETUP.md`](docs/GAZEBO_SETUP.md); agente: [`docs/NEBIUS_AGENTICROS.md`](docs/NEBIUS_AGENTICROS.md); ultime modifiche alla percezione: [`docs/CHANGELOG_PERCEZIONE_VLM.md`](docs/CHANGELOG_PERCEZIONE_VLM.md); confronto prima/dopo: [`docs/CONFRONTO_PERCEZIONE.md`](docs/CONFRONTO_PERCEZIONE.md).
+Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, il modello vision (Kimi-K2.6) localizza i bersagli e descrive la scena, YOLO locale può aiutare sui bersagli COCO. Flusso completo: [`src/README.md`](src/README.md); simulazione: [`docs/GAZEBO_SETUP.md`](docs/GAZEBO_SETUP.md); agente: [`docs/NEBIUS_AGENTICROS.md`](docs/NEBIUS_AGENTICROS.md); ultime modifiche alla percezione: [`docs/CHANGELOG.md`](docs/CHANGELOG.md); confronto prima/dopo: [`docs/CONFRONTO_PERCEZIONE.md`](docs/CONFRONTO_PERCEZIONE.md).
 
 ## Come testare
 
@@ -47,7 +47,7 @@ La percezione si sceglie con `NEBIUS_PERCEPTION`:
 |---|---|---|
 | senza YOLO (default) | `./scripts/run_nebius_agent.sh "…"` | solo il modello vision (Kimi-K2.6, bounding box) |
 | con YOLO | `NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "…"` | YOLO a riquadri per i bersagli COCO, il modello vision per gli altri e come ripiego |
-| con YOLO26s | `NEBIUS_PERCEPTION=yolo AGENTICROS_YOLOV8_MODEL=~/.agenticros/models/yolo26s.onnx ./scripts/run_nebius_agent.sh "…"` | come la precedente, con un YOLO più recente (export in [`docs/CHANGELOG_PERCEZIONE_VLM.md`](docs/CHANGELOG_PERCEZIONE_VLM.md#4-yolo-versione-con-yolo)) |
+| con YOLO26s | `NEBIUS_PERCEPTION=yolo AGENTICROS_YOLOV8_MODEL=~/.agenticros/models/yolo26s.onnx ./scripts/run_nebius_agent.sh "…"` | come la precedente, con un YOLO più recente (export in [`docs/CHANGELOG.md`](docs/CHANGELOG.md#4-yolo-versione-con-yolo)) |
 | con MiniCPM-V | `NEBIUS_VISION_MODEL=openbmb/MiniCPM-V-4_5 ./scripts/run_nebius_agent.sh "…"` | modello vision a 9 colonne, per confronto (meno preciso) |
 
 ```bash

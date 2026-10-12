@@ -1,8 +1,67 @@
-# Changelog: percezione con il modello vision (versione con e senza YOLO)
+# Changelog
 
-12 ottobre 2026. Modifiche all'adapter Nebius (`tools/agenticros/packages/agenticros-nebius/src/`) e alla documentazione. Confronto sintetico prima/dopo con i numeri: [CONFRONTO_PERCEZIONE.md](CONFRONTO_PERCEZIONE.md). Il piano completo, con il metodo di valutazione e tutte le tabelle, è in [PIANO_PERCEZIONE_VLM.md](PIANO_PERCEZIONE_VLM.md).
+Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
-## In breve
+## 12 ottobre 2026: esplorazione senza mappa e rilevamento di Nav2
+
+Modifiche all'adapter Nebius (`tools/agenticros/packages/agenticros-nebius/src/`) per quando il robot non ha una mappa (`nav:=none`) e per quando ce l'ha (`nav:=map`). La versione definitiva costruirà prima una mappa e poi la userà; questa resta la modalità di riserva.
+
+### In breve
+
+- **Nav2 a volte non veniva visto** anche se era acceso: "vai in cucina" finiva con `Nav2 not running; 0 known places` e il robot cercava a vista. Ora il controllo viene ripetuto prima di rinunciare alla mappa.
+- **Giro di ricerca più veloce**: rotazioni da 90° invece di 45°, 5 per un giro completo invece di 9.
+- **7 esplorazioni invece di 4**, per usare gli stessi passi e lo stesso tempo di prima con giri che costano la metà.
+- **Scarto degli avvistamenti "fantasma"**: un oggetto scambiato per il bersaglio, che sparisce ogni volta che il robot si gira a guardarlo, non lo fa più girare avanti e indietro.
+
+### Nav2 non rilevato (`robot.ts`)
+
+All'avvio l'agente cerca l'azione `/navigate_to_pose` fra quelle del grafo ROS. L'agente è un processo nuovo a ogni lancio e la discovery DDS a volte si ferma a metà: con Nav2 acceso, in 1 avvio su 8 sono arrivati 19 topic su 98, senza quelli di Nav2. Se Nav2 non compare, ora il controllo viene ripetuto fino a 2 volte a 1 s di distanza, con il log `[Navigation] Nav2 not seen on the ROS graph, retrying discovery (1/2)`. Su 8 avvii con Nav2 acceso: 8 su 8 con le 9 stanze note, e in uno il secondo tentativo ha recuperato una discovery parziale. Quando Nav2 è spento davvero, l'avvio impiega circa 2 s in più.
+
+### Giro di ricerca da 90° (`policy.ts`)
+
+La camera vede ~110°. Sui frame della casa ([`scripts/vision_eval/`](../scripts/vision_eval/README.md)) Kimi-K2.6 trova i bersagli anche al bordo dell'immagine:
+
+| Distanza dal centro dell'immagine | Bersagli trovati |
+|---|---|
+| 0–15° | 79% |
+| 15–30° | 96% |
+| 30–45° | 83% |
+| 45–55° | 87% |
+
+Con rotazioni da 90° ogni direzione cade entro ±45° in almeno una vista, quindi non serve guardarla 2–3 volte come con i passi da 45°. Il budget di esplorazioni sale da 4 a 7: con 4 il robot si arrendeva dopo ~42 degli 80 passi disponibili.
+
+### Avvistamenti fantasma (`policy.ts`, `agent.ts`)
+
+In una prova un divano veniva "visto" come letto solo quando stava al bordo dell'immagine. Il robot si girava a guardarlo, il "letto" spariva, la ricerca lo riportava al bordo, e così per ~20 passi. Ora un avvistamento non confermato che sparisce due volte quando il robot si gira a guardarlo, alla stessa direzione (±20°), viene ignorato finché il robot resta in quel punto. Il log è `[Perception] ignoring the sighting at … deg`. Le rilevazioni YOLO forti (≥ 0,8) non vengono mai scartate, e dopo ogni spostamento di esplorazione si riparte da zero.
+
+### Prove a ciclo chiuso
+
+Casa, `nav:=none`, partenza dallo spawn, arrivo verificato sulla posa reale di Gazebo:
+
+| Prova | Esito |
+|---|---|
+| "vai in camera da letto", passi da 45° (prima) | 0 su 2: 80 passi esauriti senza trovare il letto |
+| "vai in camera da letto", 90° e 4 esplorazioni | non arrivato: esplorato verso est, resa dopo 42 passi |
+| "vai in camera da letto", 90° e 7 esplorazioni | **arrivato** in 17 passi, 1,01 m dal letto |
+| "vai in camera da letto", 90° e 7 esplorazioni | **arrivato** in 18 passi, 0,99 m, ~150 s |
+| "vai vicino al frigorifero" (controllo) | arrivato in 13 passi, 0,92 m (prima 11) |
+
+Le corse sono poche e la direzione della prima esplorazione conta molto: il miglioramento è reale, ma senza mappa la stanza giusta resta non garantita. Con `nav:=map` "vai in camera da letto" arriva con Nav2 al primo colpo.
+
+### Provati e scartati
+
+- **Memoria del bersaglio confermato**: dopo un frame mancato, il robot tornava a guardare dove l'aveva visto. Nella prova è scattata due volte senza ritrovare il bersaglio e ha solo aggiunto passi. Tolta.
+- **Puntare la porta quando il bersaglio è dietro una porta**: sulle risposte salvate di Kimi, il riquadro del bersaglio cade dentro il riquadro di una porta solo nel 17% dei casi con il percorso davvero bloccato, e nell'8% di quelli con il percorso libero. Il segnale è troppo debole: non implementato.
+
+### File
+
+`robot.ts` (retry di Nav2), `policy.ts` (passo di ricerca, budget di esplorazioni, fantasmi), `agent.ts` (scarto dei fantasmi prima della verifica sul ritaglio, testo del tool `search`), `__tests__/policy.test.ts` (27 test). Docs: [NEBIUS_AGENTICROS.md](NEBIUS_AGENTICROS.md), `src/README.md`.
+
+## 12 ottobre 2026: percezione con il modello vision (versione con e senza YOLO)
+
+Modifiche all'adapter Nebius (`tools/agenticros/packages/agenticros-nebius/src/`) e alla documentazione. Confronto sintetico prima/dopo con i numeri: [CONFRONTO_PERCEZIONE.md](CONFRONTO_PERCEZIONE.md). Il piano completo, con il metodo di valutazione e tutte le tabelle, è in [PIANO_PERCEZIONE_VLM.md](PIANO_PERCEZIONE_VLM.md).
+
+### In breve
 
 - Nuova modalità **senza YOLO**, ora il **default**: `NEBIUS_PERCEPTION=vlm`. Il modello vision localizza ogni bersaglio; YOLO non viene caricato né scaricato. `NEBIUS_PERCEPTION=yolo` attiva la versione con YOLO.
 - Il modello vision di default diventa **`moonshotai/Kimi-K2.6`**, che restituisce direttamente il **bounding box** del bersaglio. Le 9 colonne restano solo per i modelli che non sanno dare coordinate, come MiniCPM-V.
@@ -17,7 +76,7 @@ NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "vai vicino al frigorifero"
 
 > **Da fare a mano**: se nel tuo `.env` c'è ancora `NEBIUS_VISION_MODEL=openbmb/MiniCPM-V-4_5`, cambialo in `moonshotai/Kimi-K2.6` (oppure toglilo: è il nuovo default). Le variabili di `.env` vincono sul default.
 
-## Come è stato deciso
+### Come è stato deciso
 
 Le scelte vengono da prove sulla simulazione, non da ipotesi:
 
@@ -28,7 +87,7 @@ Le scelte vengono da prove sulla simulazione, non da ipotesi:
 
 Script, risultati e istruzioni per ripetere le prove: [`scripts/vision_eval/`](../scripts/vision_eval/README.md).
 
-## 1. Colonne, griglia o box?
+### 1. Colonne, griglia o box?
 
 Prima il frame veniva ridotto a 768×432 e diviso in 9 colonne numerate. MiniCPM-V indicava la colonna del centro del bersaglio e una taglia (`small`, `large`...); la distanza si misurava su tutta la banda della colonna.
 
@@ -87,7 +146,7 @@ Confronto sui 68 bersagli COCO della casa (stesse domande):
 | YOLO26s + Kimi-K2.6 | **88%** |
 | Solo Kimi-K2.6 (senza YOLO) | 87%, sempre con box preciso |
 
-## 2. Bug corretto: il parser JSON
+### 2. Bug corretto: il parser JSON
 
 `parseJsonObject` prendeva il testo dalla prima `{` all'ultima `}`. MiniCPM-V chiude spesso il JSON compatto con una graffa in più (`...}}}`), e così l'intera risposta veniva scartata: il bersaglio risultava "non visibile" anche quando il modello l'aveva visto.
 
@@ -97,7 +156,7 @@ Confronto sui 68 bersagli COCO della casa (stesse domande):
 - La correzione vale anche per la versione con YOLO: da sola porta i bersagli trovati dal 57% al 69%.
 - Con Kimi in più c'è l'output strutturato (`response_format` json_schema): 0 risposte non valide su 184.
 
-## 3. Cosa hanno rivelato le prove a ciclo chiuso
+### 3. Cosa hanno rivelato le prove a ciclo chiuso
 
 Le prime corse sono finite con falsi successi. Ognuna delle guardie seguenti corregge un errore visto davvero; valgono anche con YOLO.
 
@@ -128,7 +187,7 @@ Esiti finali del prototipo:
 | ldc25, senza YOLO, "cerca l'idrante rosso e vacci vicino" | arrivato in 10 passi, 0,93 m |
 | ldc25, con YOLO e Kimi, stessa richiesta | arrivato; colore verificato da Kimi |
 
-## 4. YOLO (versione con YOLO)
+### 4. YOLO (versione con YOLO)
 
 Il progetto usa **YOLOv8n** (gennaio 2023), in ONNX su CPU, con la detection a riquadri (frame intero più 5 riquadri sull'orizzonte). Con la stessa pipeline, sui frame della casa:
 
@@ -149,7 +208,7 @@ AGENTICROS_YOLOV8_MODEL=~/.agenticros/models/yolo26s.onnx ./scripts/run_nebius_a
 
 YOLOE-26, che accetta nomi di oggetti arbitrari, qui non conviene (38–43%). Se la licenza AGPL di Ultralytics è un problema, l'alternativa è RF-DETR (Apache-2.0), che però non è stato provato e richiederebbe un decoder nuovo.
 
-## 5. Modifiche nel codice
+### 5. Modifiche nel codice
 
 File in `tools/agenticros/packages/agenticros-nebius/src/`:
 
@@ -168,7 +227,7 @@ Cosa **non** cambia: Nemotron e i suoi tool, i tool MCP e i limiti di sicurezza,
 
 Provati e scartati: il controllo "distanza letta contro metri percorsi" (un riferimento sbagliato faceva scartare le letture giuste) e il flag `occluded` chiesto al modello vision come criterio di decisione (lo indovina solo nel 45% dei casi).
 
-## 6. Limiti noti
+### 6. Limiti noti
 
 - Senza Nav2 il robot non aggira tavoli e sedie davanti al bersaglio. Con `nav:=map` la stanza nota si raggiunge prima con Nav2.
 - Il sensore di profondità simulato vede attraverso il vetro ma non attraverso i telai: le "porte" su vetrate non si possono scartare con la profondità.

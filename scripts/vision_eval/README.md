@@ -1,6 +1,6 @@
 # Valutazione della percezione (modelli vision e YOLO)
 
-Script dello studio che ha portato alla percezione attuale. Contesto e conclusioni: [`docs/CHANGELOG_PERCEZIONE_VLM.md`](../../docs/CHANGELOG_PERCEZIONE_VLM.md) e [`docs/PIANO_PERCEZIONE_VLM.md`](../../docs/PIANO_PERCEZIONE_VLM.md). Risultati principali: [`RISULTATI.md`](RISULTATI.md). Dati e risultati grezzi (`data/`, `results/`, `.json`, `.jsonl`, `.log`) restano solo in locale: non sono in Git.
+Script dello studio che ha portato alla percezione attuale. Contesto e conclusioni: [`docs/CHANGELOG.md`](../../docs/CHANGELOG.md) e [`docs/PIANO_PERCEZIONE_VLM.md`](../../docs/PIANO_PERCEZIONE_VLM.md). Risultati principali: [`RISULTATI.md`](RISULTATI.md). Dati e risultati grezzi (`data/`, `results/`, `.json`, `.jsonl`, `.log`) restano solo in locale: non sono in Git.
 
 Tutto va eseguito nel container, da questa cartella. `.env` viene caricato dagli script che chiamano Nebius, ma la chiave non viene mai stampata.
 

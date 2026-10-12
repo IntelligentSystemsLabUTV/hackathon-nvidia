@@ -1,6 +1,6 @@
 # Confronto della percezione: prima e ora (con e senza YOLO)
 
-Misure su 56 frame della casa in Gazebo (128 bersagli visibili, di cui 68 COCO e 60 non COCO; 56 domande con bersaglio assente) e 14 frame di ldc25. Un bersaglio conta come trovato solo se la posizione indicata cade sull'oggetto vero. Dettagli: [CHANGELOG_PERCEZIONE_VLM.md](CHANGELOG_PERCEZIONE_VLM.md); script e dati: [scripts/vision_eval](../scripts/vision_eval/RISULTATI.md).
+Misure su 56 frame della casa in Gazebo (128 bersagli visibili, di cui 68 COCO e 60 non COCO; 56 domande con bersaglio assente) e 14 frame di ldc25. Un bersaglio conta come trovato solo se la posizione indicata cade sull'oggetto vero. Dettagli: [CHANGELOG.md](CHANGELOG.md); script e dati: [scripts/vision_eval](../scripts/vision_eval/RISULTATI.md).
 
 | | Prima | Ora, con YOLO | Ora, senza YOLO (default) |
 |---|---|---|---|
