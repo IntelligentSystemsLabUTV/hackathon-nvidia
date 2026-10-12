@@ -1,18 +1,12 @@
 # hackathon-nvidia
 
-Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da
-AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni,
-MiniCPM-V descrive la scena, YOLO locale rileva gli oggetti. Il progetto è un
-workspace DUA (dotX Automation), ROS 2 Jazzy.
+Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, Kimi-K2.6 localizza i bersagli (bounding box) e descrive la scena, YOLO locale aiuta sui bersagli COCO (`NEBIUS_PERCEPTION=yolo`, default; `vlm` = senza YOLO, vedi `docs/CHANGELOG_PERCEZIONE_VLM.md`). Il progetto è un workspace DUA (dotX Automation), ROS 2 Jazzy.
 
-Documentazione dettagliata: `src/README.md` (flusso completo),
-`docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md`.
-Docs e messaggi all'utente in italiano, codice e commenti in inglese.
+Documentazione dettagliata: `src/README.md` (flusso completo), `docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md`. Docs e messaggi all'utente in italiano, codice e commenti in inglese.
 
 ## Dove gira tutto: container DUA
 
-ROS, Gazebo e Node esistono **solo nel container**, non sull'host. Usa sempre
-`docker exec`.
+ROS, Gazebo e Node esistono **solo nel container**, non sull'host. Usa sempre `docker exec`.
 
 ```bash
 # host: avvio (GPU RTX 2060 via runtime nvidia; xhost +local: per la GUI)
@@ -21,13 +15,8 @@ docker exec -it devcontainer-hackathon-nvidia-x86-cudev-1 zsh   # repo in ~/work
 docker compose down                                             # stop, dalla stessa cartella
 ```
 
-- Per comandi non interattivi usa `docker exec <c> bash -ic '...'`: `.bashrc`
-  chiama `ros2init`, che fa il source di jazzy, gazebo, ros_gz, **dua-utils** e
-  `install/local_setup`.
-- **Non lanciare `colcon build` con il solo `/opt/ros/jazzy` sorgente.**
-  `install/setup.*` perderebbe l'underlay dua-utils e i launch fallirebbero con
-  `package 'dua_app_management' not found`. Builda da una shell `bash -ic`
-  e usa l'alias `cbuild` (`colcon build --symlink-install --continue-on-error`).
+- Per comandi non interattivi usa `docker exec <c> bash -ic '...'`: `.bashrc` chiama `ros2init`, che fa il source di jazzy, gazebo, ros_gz, **dua-utils** e `install/local_setup`.
+- **Non lanciare `colcon build` con il solo `/opt/ros/jazzy` sorgente.** `install/setup.*` perderebbe l'underlay dua-utils e i launch fallirebbero con `package 'dua_app_management' not found`. Builda da una shell `bash -ic` e usa l'alias `cbuild` (`colcon build --symlink-install --continue-on-error`).
 - Il layout di install è isolato (`install/<pkg>/share/<pkg>`).
 
 ## Struttura
@@ -45,8 +34,7 @@ docker compose down                                             # stop, dalla st
 | `scripts/run_nebius_agent.sh` | Avvia l'agente Nebius e imposta i default della sim | tracciato |
 | `scripts/fetch_house_world.sh` | Scarica e adatta i modelli della casa | tracciato |
 
-I package sim ignorati non sono versionati: ogni modifica a quei file va
-esportata come patch in `patches/` e documentata in `docs/GAZEBO_SETUP.md`.
+I package sim ignorati non sono versionati: ogni modifica a quei file va esportata come patch in `patches/` e documentata in `docs/GAZEBO_SETUP.md`.
 
 ## Comandi frequenti (nel container, da `~/workspace`)
 
@@ -62,51 +50,23 @@ cd tools/agenticros && pnpm build                                  # dopo modifi
 agenticros_setup                                                   # setup completo: colcon + pnpm
 ```
 
-Topic chiave: camera `/dottorcane/slam/zed_x_driver/left/image_rect_color`
-(1920×1080), profondità `/dottorcane/slam/zed_x_driver/depth_distances`,
-cmd_vel `/dottorcane/go2_control/cmd_vel`, posa reale `/gz/dottorcane/pose`
-(base in piedi a z ≈ 0,22 m), joint `/dottorcane/joint_states`.
+Topic chiave: camera `/dottorcane/slam/zed_x_driver/left/image_rect_color` (1920×1080), profondità `/dottorcane/slam/zed_x_driver/depth_distances`, cmd_vel `/dottorcane/go2_control/cmd_vel`, posa reale `/gz/dottorcane/pose` (base in piedi a z ≈ 0,22 m), joint `/dottorcane/joint_states`.
 
 ## AgenticROS
 
-Per il monorepo TypeScript (adapter Nebius, server MCP, core, convenzioni)
-vedi `tools/agenticros/CLAUDE.md`. Transport DDS locale (domain 0); il robot si muove solo tramite i
-tool AgenticROS (`ros2_move_for`, `ros2_estop`), che applicano i limiti di
-sicurezza. Le modifiche al submodule vanno committate e pushate nel submodule
-prima di aggiornare il puntatore qui.
-`.env` contiene `NEBIUS_API_KEY`: non leggerlo, non stamparlo, non committarlo.
+Per il monorepo TypeScript (adapter Nebius, server MCP, core, convenzioni) vedi `tools/agenticros/CLAUDE.md`. Transport DDS locale (domain 0); il robot si muove solo tramite i tool AgenticROS (`ros2_move_for`, `ros2_estop`), che applicano i limiti di sicurezza. Le modifiche al submodule vanno committate e pushate nel submodule prima di aggiornare il puntatore qui. `.env` contiene `NEBIUS_API_KEY`: non leggerlo, non stamparlo, non committarlo.
 
 ## Insidie della simulazione
 
-- **Gazebo orfani.** Dopo `Ctrl-C` o un `timeout` il processo `gz sim` può
-  restare vivo; il launch successivo allora si aggancia al vecchio mondo.
-  Prima di rilanciare: `pkill -9 -f "gz sim"` (insieme a
-  `dua_component_container`, `quadruped_controller`, `ros_gz_republish`).
-- **Requisiti di un world per il Go2:** `<world name="default">`, passo 1 ms,
-  `<dart><collision_detector>bullet</collision_detector></dart>` e i system
-  plugin di `house.world` (Sensors ogre2, Imu, Contact).
-- **Modelli statici:** usa `<include>` con `<static>true</static>`. Un
-  `<model><static>` che avvolge un `<include>` NON rende statico il modello
-  incluso (la casa andava a 0,2× il tempo reale).
-- **Niente pavimenti in trimesh sottile:** pavimenti e tappeti in mesh di pochi
-  mm/cm fanno affondare i piedi e il robot collassa a z ≈ 0,09. Togli la loro
-  collisione e lascia camminare il robot sul ground plane.
-- Per verificare un world o una modifica alla sim: headless con `gui:=false`,
-  poi controlla `real_time_factor` (`gz topic -e -n 1 -t /stats`), la z di
-  `/gz/dottorcane/pose` dopo l'avvio e lo spostamento con un `cmd_vel` breve.
-  Riferimento su LDC25: RTF 1,0, camera ~5 Hz; nella casa ~2,5–3 Hz.
-- Warning `A new JointTrajectory message was received...` ed eccezioni allo
-  shutdown sono noti e innocui.
-- **Nav2 e librerie.** L'underlay DUA ha BehaviorTree.CPP 4.9 prima di quello di
-  Jazzy nel `LD_LIBRARY_PATH`: `go2_nav.launch.py` mette `/opt/ros/jazzy/lib` in
-  testa per i processi Nav2. `ros-jazzy-diagnostic-updater` dell'immagine base è
-  più vecchio di Nav2 (`undefined symbol diagnostic_updater::Updater`): il
-  Dockerfile lo aggiorna; in un container vecchio
-  `sudo apt-get install --only-upgrade ros-jazzy-diagnostic-updater`.
-- **Uccidere processi.** `pkill -f "<testo>"` uccide anche la shell che lo esegue
-  se il testo compare nella sua riga di comando: usa un pattern come `"[g]z sim"`.
+- **Gazebo orfani.** Dopo `Ctrl-C` o un `timeout` il processo `gz sim` può restare vivo; il launch successivo allora si aggancia al vecchio mondo. Prima di rilanciare: `pkill -9 -f "gz sim"` (insieme a `dua_component_container`, `quadruped_controller`, `ros_gz_republish`).
+- **Requisiti di un world per il Go2:** `<world name="default">`, passo 1 ms, `<dart><collision_detector>bullet</collision_detector></dart>` e i system plugin di `house.world` (Sensors ogre2, Imu, Contact).
+- **Modelli statici:** usa `<include>` con `<static>true</static>`. Un `<model><static>` che avvolge un `<include>` NON rende statico il modello incluso (la casa andava a 0,2× il tempo reale).
+- **Niente pavimenti in trimesh sottile:** pavimenti e tappeti in mesh di pochi mm/cm fanno affondare i piedi e il robot collassa a z ≈ 0,09. Togli la loro collisione e lascia camminare il robot sul ground plane.
+- Per verificare un world o una modifica alla sim: headless con `gui:=false`, poi controlla `real_time_factor` (`gz topic -e -n 1 -t /stats`), la z di `/gz/dottorcane/pose` dopo l'avvio e lo spostamento con un `cmd_vel` breve. Riferimento su LDC25: RTF 1,0, camera ~5 Hz; nella casa ~2,5–3 Hz.
+- Warning `A new JointTrajectory message was received...` ed eccezioni allo shutdown sono noti e innocui.
+- **Nav2 e librerie.** L'underlay DUA ha BehaviorTree.CPP 4.9 prima di quello di Jazzy nel `LD_LIBRARY_PATH`: `go2_nav.launch.py` mette `/opt/ros/jazzy/lib` in testa per i processi Nav2. `ros-jazzy-diagnostic-updater` dell'immagine base è più vecchio di Nav2 (`undefined symbol diagnostic_updater::Updater`): il Dockerfile lo aggiorna; in un container vecchio `sudo apt-get install --only-upgrade ros-jazzy-diagnostic-updater`.
+- **Uccidere processi.** `pkill -f "<testo>"` uccide anche la shell che lo esegue se il testo compare nella sua riga di comando: usa un pattern come `"[g]z sim"`.
 
 ## Git
 
-Branch `master`, remote SSH. Non committare `build/`, `install/`, `log/`,
-`config/gazebo/`, `.env`.
+Branch `master`, remote SSH. Non committare `build/`, `install/`, `log/`, `config/gazebo/`, `.env`.
