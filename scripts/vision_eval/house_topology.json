@@ -1,0 +1,33 @@
+{
+  "_comment": "Ground truth of the house topology, for offline evaluation only (never an input of the agent). Coordinates in the Gazebo world frame (m), measured from the collision meshes of house.world and the occupancy map.",
+  "zones": {
+    "bedroom": [[-9.4, -1.5], [-2.46, -1.5], [-2.46, 3.1], [-9.4, 3.1]],
+    "second_room": [[-9.4, -5.6], [-2.46, -5.6], [-2.46, -1.5], [-9.4, -1.5]],
+    "center": [[-2.46, -5.6], [4.8, -5.6], [4.8, 5.6], [-2.46, 5.6]],
+    "east": [[4.8, -5.6], [9.4, -5.6], [9.4, 3.1], [4.8, 3.1]]
+  },
+  "capture_zones": {
+    "bedroom": "bedroom", "second": "second_room", "hall": "center", "gym": "center", "living": "center", "dining": "east", "kitchen": "east"
+  },
+  "elements": [
+    {"id": "west_passage_bedroom", "type": "passage", "a": [-2.46, -1.5], "b": [-2.46, 0.59], "connects": ["center", "bedroom"]},
+    {"id": "west_passage_second", "type": "passage", "a": [-2.46, -2.8], "b": [-2.46, -1.5], "connects": ["center", "second_room"]},
+    {"id": "inner_gap_east", "type": "passage", "a": [-3.88, -1.5], "b": [-2.46, -1.5], "connects": ["bedroom", "second_room"]},
+    {"id": "inner_gap_west", "type": "passage", "a": [-9.36, -1.5], "b": [-8.36, -1.5], "connects": ["bedroom", "second_room"]},
+    {"id": "east_opening", "type": "passage", "a": [4.8, -4.36], "b": [4.8, 1.98], "connects": ["center", "east"]},
+    {"id": "folding_glass_west_north", "type": "glass", "a": [-2.46, 0.59], "b": [-2.46, 3.1]},
+    {"id": "folding_glass_west_south", "type": "glass", "a": [-2.46, -5.31], "b": [-2.46, -2.8]},
+    {"id": "folding_glass_east_north", "type": "glass", "a": [4.67, 1.98], "b": [4.67, 3.1]},
+    {"id": "folding_glass_east_south", "type": "glass", "a": [4.9, -5.49], "b": [4.9, -4.36]},
+    {"id": "front_door", "type": "outside", "a": [5.5, -5.55], "b": [6.5, -5.55]},
+    {"id": "window_w1", "type": "window", "a": [-9.42, -1.21], "b": [-9.42, 1.16]},
+    {"id": "window_w2", "type": "window", "a": [-9.42, -3.56], "b": [-9.42, -1.19]},
+    {"id": "window_e1", "type": "window", "a": [9.42, -4.56], "b": [9.42, -2.19]},
+    {"id": "window_e2", "type": "window", "a": [9.42, -0.21], "b": [9.42, 2.15]},
+    {"id": "window_n1", "type": "window", "a": [4.72, 3.29], "b": [4.72, 5.65]},
+    {"id": "window_n2", "type": "window", "a": [2.31, 5.6], "b": [4.67, 5.6]},
+    {"id": "window_n3", "type": "window", "a": [-0.04, 5.6], "b": [2.32, 5.6]},
+    {"id": "window_n4", "type": "window", "a": [-2.38, 5.6], "b": [-0.02, 5.6]},
+    {"id": "window_n5", "type": "window", "a": [-2.4, 3.2], "b": [-2.4, 5.57]}
+  ]
+}

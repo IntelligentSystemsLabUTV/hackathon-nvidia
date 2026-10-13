@@ -71,11 +71,13 @@ Due modalità, scelte con `NEBIUS_PERCEPTION` (dettagli e misure in [CHANGELOG.m
   - se il bordo inferiore del box è molto più in alto di dove si vedrebbe il pavimento alla distanza letta, la profondità appartiene a qualcosa davanti al bersaglio (una sedia davanti al frigo): distanza ignota, niente arrivo;
   - con bersaglio visibile ma distanza ignota il passo è al massimo 0,5 m (il corridoio frontale non vede ostacoli più bassi della camera);
   - un avvistamento del modello vision viene ricontrollato sul ritaglio quando verrebbe confermato e prima dell'arrivo (una porta a soffietto scambiata per armadio);
-  - al primo avvistamento laterale il controller chiede `face_target` invece di `search`; da lontano il passo minimo di avvicinamento è 1 m.
+  - al primo avvistamento laterale il controller chiede `face_target` invece di `search`; da lontano il passo minimo di avvicinamento è 1 m; entro 12° dal centro `face_target` è rifiutato, perché `approach_target` allinea e avanza da solo (un letto a 7,4 m ricentrato due volte di 5° è stato perso al terzo frame);
+  - un avvistamento che comincia già alla distanza d'arrivo con il riquadro che riempie l'immagine non viene confermato dalla sola ripetizione (un divano a 0,37 m preso per il letto);
+  - **deviazione intorno a un ostacolo** davanti a un bersaglio confermato: se due movimenti di fila lasciano il bersaglio fermo nell'immagine, il robot è bloccato (per esempio contro lo spigolo di una porta a soffietto, con la profondità che vede spazio libero oltre) e gira di 40° dal lato opposto al bersaglio; se invece non c'è spazio per avanzare verso il bersaglio (il telaio della porta a 0,48 m, il letto a 3,2 m oltre), gira di 40° dal lato del bersaglio, e la volta dopo dall'altro. In entrambi i casi avanza fino a 0,7 m e riprende l'avvicinamento; "percorso bloccato" solo dopo 3 deviazioni dallo stesso punto. Dettagli in [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md).
 
   ![Guardia di occlusione](img/guardia-occlusione.jpg)
 
-- **Robustezza**: il JSON del modello vision viene letto con un parser a graffe bilanciate (prima una `}` in più faceva scartare la risposta). In modalità `vlm`, se il modello vision non risponde il robot non si muove; dopo 3 fallimenti consecutivi il compito si interrompe.
+- **Robustezza**: il JSON del modello vision viene letto con un parser a graffe bilanciate (prima una `}` in più faceva scartare la risposta). In modalità `vlm`, se il modello vision non risponde il robot non si muove; lo stesso se uno snapshot della camera va in timeout (prima chiudeva l'intero compito). Dopo 3 fallimenti consecutivi il compito si interrompe.
 
 ## Navigazione con Nav2
 
@@ -83,13 +85,13 @@ All'avvio l'agente chiama `ros2_list_actions` e sceglie la modalità in base a c
 
 | Simulazione | Stanze | "vai in camera da letto" | Bersaglio non visto dopo un giro |
 |---|---|---|---|
-| `nav:=map` (Nav2 + AMCL) | `ros2_list_places` | `goto bedroom`: Nav2 fino alla stanza, poi descrizione | esplorazione per spazio libero |
+| `nav:=map` (Nav2 + AMCL) | `ros2_list_places` | `goto bedroom`: Nav2 fino alla stanza, poi descrizione | esplorazione senza mappa (sotto) |
 | `nav:=slam` (Nav2 + SLAM) | ignorate: la casa non è nota | `approach bed` | Nav2 verso la frontiera successiva della mappa SLAM, poi nuovo giro |
-| `nav:=none` | — | `approach bed` | esplorazione per spazio libero |
+| `nav:=none` | — | `approach bed` | esplorazione senza mappa: grafo dei luoghi, il modello vision sceglie dove andare |
 
 - **Stanze.** `run_nebius_agent.sh` imposta `AGENTICROS_PLACES_PATH` su `src/go2_sim_worlds/config/places/${GO2_WORLD:-house}.json`. Nemotron riceve nome e descrizione di ogni stanza e sceglie `goto` con `place`, oppure, per un oggetto che sta in una stanza nota ("vai vicino al letto"), `approach` con `place`: prima Nav2 fino alla stanza, poi l'avvicinamento visivo.
 - **Navigazione.** `ros2_navigate_to_place` invia `NavigateToPose` tramite la capability `navigate_to`, dichiarata dalla skill locale `config/agenticros-skills/go2-nav2` (`skillPaths` in `config/agenticros.json`). Pianificazione, ostacoli e limiti di velocità sono di Nav2 (parametri allineati ai limiti AgenticROS); l'agente aspetta l'esito (fino a 11 minuti).
-- **Frontiere.** Con `nav:=slam` l'intent `explore` diventa l'azione `frontier`: `ros2_action_goal` su `/explore` (`agenticros_explore`, un goal). Se non ci sono frontiere raggiungibili, l'agente torna all'esplorazione per spazio libero.
+- **Frontiere.** Con `nav:=slam` l'intent `explore` diventa l'azione `frontier`: `ros2_action_goal` su `/explore` (`agenticros_explore`, un goal). Se non ci sono frontiere raggiungibili, l'agente torna all'esplorazione senza mappa.
 - **Arresto.** `ros2_estop` annulla anche la navigazione: i goal inviati dall'MCP e, con `cancel_goal` a id nullo, tutti i goal di `navigate_to_pose`. Senza, Nav2 tornerebbe a comandare il robot subito dopo il `cmd_vel` nullo. Verificato: `ros2_navigate_to_place` restituisce `canceled` e il robot resta fermo.
 
 Prove (house, headless):
@@ -104,11 +106,10 @@ Senza Nav2 (o con `nav:=slam`) l'agente non usa la mappa della casa (`src/go2_si
 
 Il giro di ricerca è fatto di rotazioni da 90° (5 rotazioni per un giro completo). La camera vede ~110° e sui frame della casa Kimi-K2.6 trova i bersagli anche al bordo dell'immagine (87% fra 45° e 55° dal centro), quindi ogni direzione cade entro ±45° in almeno una vista. Con i passi da 45° di prima un giro costava 9 rotazioni.
 
-Se il bersaglio non compare durante un giro completo, il controller (`policy.ts`) fa esplorare il robot:
+Se il bersaglio non compare durante un giro completo, il controller (`policy.ts`) fa esplorare il robot (studio completo, misure e limiti: [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md)):
 
-- durante il giro registra lo spazio libero davanti al robot per ogni direzione (heading stimato sommando le rotazioni eseguite, senza posa reale);
-- il modello vision indica anche porte o passaggi interni verso altre stanze; una porta conta solo se la riportano almeno due frame dello stesso giro (frame con più di 3 porte scartati: il modello sta tirando a indovinare);
-- sceglie prima le porte confermate, altrimenti la direzione più aperta (letture oltre 5 m contano uguale); penalizza quella da cui il robot arriva e scarta quelle trovate bloccate;
+- di default (`NEBIUS_EXPLORE_CHOICE=open`) prima le porte riportate da almeno due frame dello stesso giro, altrimenti la direzione più aperta (letture oltre 5 m contano uguale), penalizzando quella da cui il robot arriva; le direzioni trovate bloccate vengono scartate;
+- con `NEBIUS_EXPLORE_CHOICE=vision` (solo modelli a box, come Kimi-K2.6) il robot segue un **grafo di luoghi**: ogni punto in cui finisce un giro è un nodo, con la posizione stimata sommando i movimenti eseguiti (nessuna posa reale, nessuna odometria) e le direzioni già esplorate da lì; un giro entro 1,5 m da un luogo noto è lo stesso luogo. Il modello vision riceve in un'unica immagine le viste del giro, con le direzioni già esplorate segnate, e sceglie la vista e il punto verso cui camminare (una chiamata in più per giro, ~2 s); se non risponde vale la regola di default. Sui frame della casa questa scelta avvicina alla zona del bersaglio nel 58–65% dei casi contro il 38%, ma a ciclo chiuso, su 16 corse, entrambe le modalità hanno raggiunto un bersaglio dell'ala ovest 1 volta su 5: rotazioni bloccate dai mobili bassi e deriva della direzione stimata pesano più della scelta;
 - si gira, avanza fino a 2,5 m con i soliti limiti e rifà il giro da lì;
 - dopo 7 esplorazioni (8 con le frontiere di `nav:=slam`), o se nessuna direzione ha almeno 1,5 m liberi, termina con insuccesso.
 
@@ -119,8 +120,9 @@ Se il bersaglio non compare durante un giro completo, il controller (`policy.ts`
 - le segnalazioni deboli (solo modello vision, o YOLO sotto 0,8) contano solo se si ripetono nel frame successivo: fino ad allora giro ed esplorazione non vengono azzerati e `finish(success)` è rifiutato.
 - una segnalazione non confermata non chiude mai la ricerca: né come arrivo né come "percorso bloccato" (il modello vision ha visto un "letto" a 0,44 m che era il divano davanti al robot); il robot continua a cercare ed esplorare.
 - una segnalazione non confermata che sparisce due volte quando il robot si gira a guardarla, alla stessa direzione (±20°), viene ignorata finché il robot resta in quel punto (log `[Perception] ignoring the sighting`). Un divano "visto" come letto solo al bordo dell'immagine faceva girare il robot avanti e indietro per ~20 passi.
+- una segnalazione che comincia già alla distanza d'arrivo con il riquadro che riempie l'immagine (≥ 60% dell'altezza) non viene confermata dalla sola ripetizione, salvo se il bersaglio era stato visto più lontano nella stessa direzione nelle ultime 3 osservazioni. Esplorando, il robot era finito a 0,37 m dal divano e due frame l'avevano preso per il letto.
 
-**Limite noto.** Senza mappa la stanza giusta non è garantita. Nella casa la camera è a ~6 m dal punto di partenza, ma attraverso un passaggio stretto a sud-ovest (~2,3 m di spazio libero misurato), mentre verso +x c'è il soggiorno aperto (5–8 m): l'esplorazione tende a partire dalla parte sbagliata e le porte riportate dal modello vision sono rumorose. Con i passi da 45° il robot non è arrivato al letto in 2 corse su 2 (80 passi esauriti). Con i passi da 90° è arrivato in 2 corse su 3 (17 e 18 passi, ~1 m dal letto, verificato sulla posa reale); nella terza ha esplorato verso est e si è arreso dopo 42 passi, con il budget di 4 esplorazioni allora in vigore.
+**Limite noto.** Senza mappa la stanza giusta non è garantita. Nella casa la camera è a ~6 m dal punto di partenza, ma attraverso un varco a sud-ovest, mentre verso +x c'è il soggiorno aperto (5–8 m liberi): l'esplorazione tende a partire dalla parte sbagliata. Nella serie A/B del 13 ottobre (16 corse, arrivo verificato sulla posa reale) letto e scrivania dallo spawn sono stati raggiunti 1 volta su 5 in ciascuna modalità; il frigorifero, che si vede già dal primo giro, 5 volte su 6. Il robot si incastra contro oggetti bassi che il corridoio di profondità non vede (cestino, tavolino, manubrio): lì le rotazioni riescono in mediana al 40% e la direzione stimata deriva fino a 180°. Numeri e prossimi passi (direzione dall'IMU, ostacoli bassi) in [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md).
 
 Nemotron vede `exploring` ed `explorations` nell'osservazione e chiama `explore`; se insiste con `search` dopo il giro, il controller lo rifiuta e la policy deterministica esegue l'esplorazione. I log `[Explore]` mostrano la fase, la direzione scelta e lo spazio libero misurato per ogni direzione.
 
@@ -128,11 +130,10 @@ Nemotron vede `exploring` ed `explorations` nell'osservazione e chiama `explore`
 
 Misurata con la posa reale `/gz/dottorcane/pose`:
 
-- `ros2_move_for` a 0,25 m/s per 3 s → ~0,48 m più ~7 cm di frenata, dritto;
-- rotazione a 0,5 rad/s → ~60% dell'angolo comandato più ~5° di frenata;
-- profondità nel box dell'idrante coerente con la distanza reale (6,17 m misurati contro 6,56 m centro-centro).
+- profondità nel box dell'idrante coerente con la distanza reale (6,17 m misurati contro 6,56 m centro-centro);
+- movimenti, con la diagnostica `AGENTICROS_DEBUG_POSE_TOPIC` (ottobre 2026, casa headless, real time factor 1,0): con le efficienze di prima (0,65 / 0,7) −90° comandati diventavano −106° e 1 m diventava 1,2 m.
 
-`run_nebius_agent.sh` imposta quindi `NEBIUS_TURN_EFFICIENCY=0.65` e `NEBIUS_FORWARD_EFFICIENCY=0.7`; il ciclo chiuso corregge l'errore residuo.
+`run_nebius_agent.sh` imposta quindi `NEBIUS_TURN_EFFICIENCY=0.77` e `NEBIUS_FORWARD_EFFICIENCY=0.84`: −90° → −91…−93°, 1 m → 0,97 m, con una deriva a destra di ~2° per pezzo di avanzamento. I comandi sono temporizzati in secondi reali: se la sim gira più lenta (real time factor < 1, per esempio con la GUI), le efficienze vanno moltiplicate per il fattore. Il ciclo chiuso corregge l'errore residuo nell'avvicinamento; per il grafo dei luoghi, che si basa sulle direzioni stimate, la calibrazione conta di più.
 
 ## Perché non `run_mission`
 
@@ -150,6 +151,7 @@ Il planner delle missioni AgenticROS è a regole, senza LLM: esegue una lista fi
 - `cancelNavigation` (core) e `ros2_estop` che annulla la navigazione; nuovo tool `ros2_list_actions`.
 - Posti con nome: `AGENTICROS_PLACES_PATH` per usare un file per mappa, campo `description`; `skillPaths` relativi al file di config.
 - Server MCP orfani: se il client terminava senza segnale (kill, crash) il server restava vivo con il suo nodo ROS. Ora si chiude quando lo stdin si chiude, dopo l'estop.
+- Esplorazione senza mappa con un grafo di luoghi e scelta della direzione da parte del modello vision (`policy.ts`, `perception.ts`, `agent.ts`), guardia sugli avvistamenti che cominciano già vicini: vedi [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md).
 - `agenticros_explore` svuotava la lista dei goal recenti a fine azione: con una frontiera per azione riproponeva sempre la stessa frontiera irraggiungibile (dietro il divano). Ora ricorda gli ultimi 16 goal tra un'azione e l'altra.
 
 ## Latenza

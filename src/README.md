@@ -24,7 +24,7 @@ AgenticROS (MCP) ── ros2_camera_snapshot ─► Kimi-K2.6 su Nebius: box, sc
 3. `ros2_depth_distance` misura la distanza dentro il box del bersaglio e lo spazio libero nel corridoio davanti al robot. Se la profondità non è coerente con la posizione del box nell'immagine (un oggetto più vicino copre il bersaglio), la distanza viene considerata ignota e l'arrivo non viene dichiarato.
 4. Nemotron sceglie un'azione semantica; il controller calcola angoli e distanze, la limita (distanza di arresto, ostacoli) o la rifiuta, e in caso di risposta non valida usa una policy deterministica.
 5. `ros2_move_for` esegue il movimento con i limiti di sicurezza di AgenticROS. Il ciclo si ripete fino all'arrivo (bersaglio centrato e a ≤ 1,35 m), al fallimento (esplorazioni esaurite, nessuna direzione libera, percorso bloccato) o ai limiti di passi/tempo. All'uscita, anche con `Ctrl-C`, viene sempre inviato `ros2_estop`.
-6. **Esplorazione senza mappa.** Se dopo un giro completo il bersaglio non si vede, il controller rifiuta altri `search` e chiede `explore`: durante il giro ha registrato lo spazio libero per ogni direzione, sceglie la più aperta (evitando quella da cui il robot arriva), si gira, avanza fino a 2,5 m e rifà il giro da lì. Il giro è fatto di 5 rotazioni da 90°. Così "vai in camera da letto" (bersaglio: letto) può uscire dalla stanza di partenza. Al massimo 7 esplorazioni, poi l'agente si arrende. Con `nav:=slam` l'esplorazione va invece con Nav2 alla frontiera successiva della mappa SLAM (fino a 8 volte).
+6. **Esplorazione senza mappa.** Se dopo un giro completo (5 rotazioni da 90°) il bersaglio non si vede, il controller rifiuta altri `search` e chiede `explore`. Di default il controller sceglie la direzione fra le porte confermate e poi la più aperta. Con `NEBIUS_EXPLORE_CHOICE=vision` ogni punto in cui il robot ha fatto un giro diventa un nodo di un grafo di luoghi, con la posizione stimata dai movimenti e le direzioni già percorse, e il modello vision sceglie la vista e il punto verso cui camminare guardando in un'unica immagine le viste del giro; offline sceglie meglio, ma a ciclo chiuso non ha portato più arrivi. Il robot si gira, avanza fino a 2,5 m e rifà il giro da lì. Così "vai in camera da letto" (bersaglio: letto) può uscire dalla stanza di partenza. Al massimo 7 esplorazioni, poi l'agente si arrende. Con `nav:=slam` l'esplorazione va invece con Nav2 alla frontiera successiva della mappa SLAM (fino a 8 volte). Misure e limiti: [`docs/ESPLORAZIONE_GRAFO.md`](../docs/ESPLORAZIONE_GRAFO.md).
 
 Il modello non accede mai direttamente ai topic né alla posa reale di Gazebo: passa sempre dai tool AgenticROS.
 
@@ -176,6 +176,7 @@ Su stderr il log mostra ogni passo: `[Goal]` (compito interpretato), `[Step N]` 
 | `NEBIUS_VISION_MODEL` | `moonshotai/Kimi-K2.6` | Modello vision: box del bersaglio, scena, verifiche sul ritaglio. `openbmb/MiniCPM-V-4_5` funziona ancora, con le 9 colonne (meno preciso) |
 | `NEBIUS_PERCEPTION` | `vlm` | `vlm` = solo modello vision, senza YOLO; `yolo` = YOLO per i bersagli COCO più modello vision |
 | `NEBIUS_VISION_GROUNDING` | dal modello | `box` o `columns`: forza il modo di localizzare per un modello vision non previsto |
+| `NEBIUS_EXPLORE_CHOICE` | `open` | Senza mappa, dopo un giro senza bersaglio: `open` = porte confermate, poi direzione più aperta; `vision` = grafo dei luoghi e scelta del modello vision dalle viste del giro (solo modelli a box) |
 | `NEBIUS_CAMERA_HEIGHT_M` | `0.385` | Altezza della camera da terra, per riconoscere le letture di profondità coperte da un oggetto più vicino |
 | `NEBIUS_REASONING_MODEL` | `nvidia/Nemotron-3_5-Lightning` | Modello che ragiona e sceglie le azioni |
 | `NEBIUS_MAX_STEPS` | `80` | Passi massimi osservazione → azione |
@@ -192,8 +193,8 @@ Variabili con default impostati da `run_nebius_agent.sh` (sovrascrivibili in `.e
 | `AGENTICROS_CONFIG_PATH` | `config/agenticros.json` | Config AgenticROS (usa `config/agenticros.local.json` per override locali) |
 | `NEBIUS_DEPTH_TOPIC` | `/dottorcane/slam/zed_x_driver/depth_distances` | Immagine di profondità (32FC1, allineata alla camera sinistra) |
 | `NEBIUS_CAMERA_HFOV_DEG` | `110` | Campo visivo orizzontale della ZED X simulata |
-| `NEBIUS_TURN_EFFICIENCY` | `0.65` | Frazione della rotazione comandata ottenuta dal passo CHAMP (misurata) |
-| `NEBIUS_FORWARD_EFFICIENCY` | `0.7` | Frazione dell'avanzamento comandato ottenuto (misurata) |
+| `NEBIUS_TURN_EFFICIENCY` | `0.77` | Frazione della rotazione comandata ottenuta dal passo CHAMP (misurata headless con RTF 1,0: −90° → −91…−93°); con RTF < 1 va scalata per l'RTF |
+| `NEBIUS_FORWARD_EFFICIENCY` | `0.84` | Frazione dell'avanzamento comandato ottenuto (misurata come sopra: 1 m → 0,97 m) |
 | `GO2_WORLD` | `house` | World lanciato: sceglie il file delle stanze |
 | `AGENTICROS_PLACES_PATH` | `src/go2_sim_worlds/config/places/${GO2_WORLD}.json` | Stanze con nome per `ros2_navigate_to_place` (usate solo con `nav:=map`) |
 | `AGENTICROS_DEBUG_POSE_TOPIC` | vuoto | `/gz/dottorcane/pose` abilita la diagnostica del movimento sulla posa reale (aggiunge ~6 s a ogni movimento; mai passata al modello) |

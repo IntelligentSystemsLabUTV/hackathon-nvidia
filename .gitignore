@@ -42,3 +42,6 @@ docs/index.html
 /scripts/vision_eval/**/*.log
 /scripts/vision_eval/**/*.json
 /scripts/vision_eval/**/*.jsonl
+/scripts/vision_eval/results/closed_loop/
+# Ground truth of the house topology: tracked (evaluation only, never read by the agent)
+!/scripts/vision_eval/house_topology.json

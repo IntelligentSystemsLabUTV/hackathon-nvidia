@@ -2,6 +2,38 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 13 ottobre 2026: grafo dei luoghi, deviazione intorno agli ostacoli e serie A/B senza mappa
+
+Sempre la modalità senza mappa (`nav:=none`). Studio completo, misure e immagini: [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md); numeri grezzi: [RISULTATI.md](../scripts/vision_eval/RISULTATI.md).
+
+### In breve
+
+- **Grafo dei luoghi con la scelta di Kimi** (`NEBIUS_EXPLORE_CHOICE=vision`): ogni giro è un nodo con le direzioni già percorse, e Kimi sceglie dove camminare guardando tutte le viste del giro. Offline sceglie meglio della direzione più aperta (58–65% contro 38% delle camminate verso la stanza del bersaglio). A ciclo chiuso, però, su 16 corse entrambe le modalità hanno raggiunto letto e scrivania 1 volta su 5, quindi **il default resta `open`**.
+- **Il limite vero è il corpo**: il robot si incastra contro oggetti bassi che la profondità frontale non vede (cestino, tavolino, manubrio). Lì le rotazioni riescono in mediana al 40%, e la direzione stimata deriva fino a 180°.
+- **Calibrazione dei movimenti corretta**: `NEBIUS_TURN_EFFICIENCY=0.77` e `NEBIUS_FORWARD_EFFICIENCY=0.84` in `run_nebius_agent.sh`. Con 0,65/0,7 il robot girava e camminava il 20% in più del comandato.
+- **Meno falsi arrivi e meno bersagli persi**: un primo avvistamento già vicino e che riempie l'immagine non si conferma per ripetizione, nemmeno a distanza ignota; `face_target` entro 12° dal centro è rifiutato a favore di `approach_target`.
+- **Deviazione intorno agli ostacoli**: con il bersaglio confermato, se il robot è bloccato o non ha spazio per avanzare, gira di 40° e cammina fino a 0,7 m, poi riprova dall'altro lato. Si arrende dopo 3 deviazioni.
+- **Un timeout della camera non chiude più il compito**: conta come un'osservazione mancata.
+- **Nuovi strumenti di valutazione** in `scripts/vision_eval/`: serie A/B a ciclo chiuso, posa vera e traiettorie registrate fuori dall'agente, deriva del grafo, rotazioni rispetto agli ostacoli.
+
+### Grafo dei luoghi (`policy.ts`, `perception.ts`, `agent.ts`)
+
+Le stanze come nodi e le porte come archi non funzionano in questa casa. Centro ed est sono un unico open space, le porte a soffietto di vetro sembrano porte ma non si attraversano, e Kimi riporta solo un passaggio vero su tre. I nodi quindi sono i **luoghi** in cui il robot fa un giro, con la posizione stimata dai movimenti, e gli archi sono le direzioni già percorse. Alla fine di ogni giro senza bersaglio, Kimi riceve un mosaico delle viste, con quelle già esplorate segnate, e restituisce la vista e il punto verso cui camminare (log `[Graph]` e `[Explore] vision model: …`). Etichette di stanza e "cosa c'è oltre" sono state misurate e scartate.
+
+### Serie A/B a ciclo chiuso
+
+| Missione | `vision` | `open` |
+|---|---|---|
+| letto, dallo spawn | 1 su 3 (più un falso arrivo sul divano) | 1 su 3 |
+| scrivania, dallo spawn | 0 su 2 (più un falso arrivo sul tavolino) | 0 su 2 |
+| frigorifero, dalla camera (nessuna esplorazione) | 2 su 3 | 3 su 3 |
+
+La serie ha fatto emergere due difetti, corretti subito dopo: la guardia del primo avvistamento non copriva la distanza ignota (falso arrivo sul divano), e una deviazione senza spazio per svoltare finiva con "Nessuna azione sicura disponibile." invece di provare l'altro lato. Resta aperto il tavolino preso per una scrivania, anche dalla verifica sul ritaglio.
+
+### Prossimi passi proposti
+
+La direzione dall'IMU della camera, contro la deriva e per accorgersi delle rotazioni bloccate; gli ostacoli bassi, con la profondità sotto l'orizzonte confrontata con il pavimento. Poi va ripetuta la serie A/B.
+
 ## 12 ottobre 2026: esplorazione senza mappa e rilevamento di Nav2
 
 Modifiche all'adapter Nebius (`tools/agenticros/packages/agenticros-nebius/src/`) per quando il robot non ha una mappa (`nav:=none`) e per quando ce l'ha (`nav:=map`). La versione definitiva costruirà prima una mappa e poi la userà; questa resta la modalità di riserva.

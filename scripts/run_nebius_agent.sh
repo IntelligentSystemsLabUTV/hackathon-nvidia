@@ -47,11 +47,14 @@ fi
 # Defaults for the Go2 Gazebo simulation (ZED X camera, ~110 deg HFOV).
 export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/slam/zed_x_driver/depth_distances}"
 export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-110}"
-# Measured in simulation (CHAMP gait with acceleration ramp, bullet contacts):
-# ~60% of the commanded yaw and ~65% of the commanded distance while the
-# command lasts, plus a short coast while the ramp brings the base to rest.
-export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-0.65}"
-export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-0.7}"
+# Measured in the house simulation (headless, real_time_factor 1.0) with
+# AGENTICROS_DEBUG_POSE_TOPIC: with these values -90 deg commands turn 91-93 deg,
+# -45 -> 46, +20 -> 18, and 1 m / 0.5 m advances cover 0.97 / 0.51 m. The former
+# 0.65 / 0.7 turned ~18% and walked ~20% too far, so the dead-reckoned heading
+# drifted ~16 deg per quarter turn. Commands are timed in wall-clock seconds: if
+# the simulation runs slower (real_time_factor < 1), scale both by that factor.
+export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-0.77}"
+export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-0.84}"
 
 # Ground-truth motion diagnostics are opt-in: they add ~6 s to every motion.
 # Enable with AGENTICROS_DEBUG_POSE_TOPIC=/gz/dottorcane/pose.

@@ -47,6 +47,8 @@ NO_THINK = {
     "Qwen/Qwen3.8-27B": {"chat_template_kwargs": {"enable_thinking": False}},
 }
 
+AREAS = ["bedroom", "living room", "kitchen", "dining room", "gym", "hallway", "office", "bathroom", "other"]
+
 GRID_COLS = 9
 GRID_ROWS_LETTERS = "ABCDE"
 
@@ -150,6 +152,26 @@ def build_prompt(variant, target, goal, size=(0, 0)):
                 '"occluded": boolean (true if a closer object hides part of the target or stands between the robot and the target)}, '
                 '"doorways": [[x1, y1, x2, y2], ...] (interior doorways, open doors or corridors leading to another room of the house; '
                 "not windows, glass walls or doors to the outside; [] if none)}")
+    elif variant == "graph":
+        text = (f"Robot goal: {goal}. " f'Look for: "{target}". ' + SIMILAR + "If several are visible, give the nearest one. "
+                "Coordinates are fractions of the image width and height: 0.0 = left/top edge, 1.0 = right/bottom edge "
+                "(e.g. [0.12, 0.40, 0.25, 0.61]). "
+                "Return JSON: {" + SUMMARY + ', "target": {"visible": boolean, "bbox": [x1, y1, x2, y2] or null}, '
+                f'"area": the kind of room or area the robot is in ({", ".join(AREAS)}), '
+                '"openings": [{"bbox": [x1, y1, x2, y2], "kind": "open"|"glass"|"closed"|"window"|"outside", "leads_to": string}, ...] '
+                "(every doorway, passage, corridor, glass door, glass wall and window in view. kind: open = the robot could walk "
+                "through it now (open doorway, corridor, passage to another area); glass = glass door or glass wall, even if you see "
+                "a room through it; closed = closed door; window = window; outside = door to the outside. leads_to: the room or area "
+                "beyond it, in a few words. [] if none)}")
+    elif variant == "exits":
+        text = (f"Robot goal: {goal}. " f'Look for: "{target}". ' + SIMILAR + "If several are visible, give the nearest one. "
+                "Coordinates are fractions of the image width and height: 0.0 = left/top edge, 1.0 = right/bottom edge "
+                "(e.g. [0.12, 0.40, 0.25, 0.61]). "
+                "Return JSON: {" + SUMMARY + ', "target": {"visible": boolean, "bbox": [x1, y1, x2, y2] or null}, '
+                '"openings": [{"bbox": [x1, y1, x2, y2], "kind": "open"|"glass"|"closed"}, ...] '
+                "(doorways, passages and corridors to another room or area, and glass doors or glass walls. kind: open = the robot "
+                "could walk through it now; glass = glass door or glass wall, even if a room shows through it; closed = closed door. "
+                "Ignore windows and doors to the outside. [] if none)}")
     elif variant == "cols9s":
         return build_prompt("cols9", target, goal, size)
     else:
@@ -185,6 +207,8 @@ CONFIGS = {
     "kimi26_final_1024": ("moonshotai/Kimi-K2.6", "final", 1024),
     "minicpm_cols9s_768": ("openbmb/MiniCPM-V-4_5", "cols9s", 768),
     "kimi26_finalocc_1024": ("moonshotai/Kimi-K2.6", "finalocc", 1024),
+    "kimi26_graph_1024": ("moonshotai/Kimi-K2.6", "graph", 1024),
+    "kimi26_exits_1024": ("moonshotai/Kimi-K2.6", "exits", 1024),
     "dsv41_bbox_1920": ("deepseek-ai/DeepSeek-V4.1-Flash", "bbox", 1920),
     "minicpm_bboxpx_1344": ("openbmb/MiniCPM-V-4_5", "bboxpx", 1344),
 }
@@ -262,7 +286,22 @@ import copy as _copy
 FINALOCC_SCHEMA = _copy.deepcopy(FINAL_SCHEMA)
 FINALOCC_SCHEMA["properties"]["target"]["properties"]["occluded"] = {"type": "boolean"}
 FINALOCC_SCHEMA["properties"]["target"]["required"] = ["visible", "bbox", "occluded"]
-STRUCTURED = {"final": FINAL_SCHEMA, "cols9s": COLS_SCHEMA, "finalocc": FINALOCC_SCHEMA}
+GRAPH_SCHEMA = _copy.deepcopy(FINAL_SCHEMA)
+del GRAPH_SCHEMA["properties"]["doorways"]
+GRAPH_SCHEMA["properties"]["area"] = {"type": "string", "enum": AREAS}
+GRAPH_SCHEMA["properties"]["openings"] = {"type": "array", "items": {"type": "object", "properties": {
+    "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+    "kind": {"type": "string", "enum": ["open", "glass", "closed", "window", "outside"]},
+    "leads_to": {"type": "string"}}, "required": ["bbox", "kind", "leads_to"], "additionalProperties": False}}
+GRAPH_SCHEMA["required"] = ["summary", "target", "area", "openings"]
+EXITS_SCHEMA = _copy.deepcopy(GRAPH_SCHEMA)
+del EXITS_SCHEMA["properties"]["area"]
+EXITS_SCHEMA["properties"]["openings"]["items"]["properties"] = {
+    "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+    "kind": {"type": "string", "enum": ["open", "glass", "closed"]}}
+EXITS_SCHEMA["properties"]["openings"]["items"]["required"] = ["bbox", "kind"]
+EXITS_SCHEMA["required"] = ["summary", "target", "openings"]
+STRUCTURED = {"final": FINAL_SCHEMA, "cols9s": COLS_SCHEMA, "finalocc": FINALOCC_SCHEMA, "graph": GRAPH_SCHEMA, "exits": EXITS_SCHEMA}
 
 
 def run_one(cfg, q):
@@ -281,7 +320,7 @@ def run_one(cfg, q):
         kw = {}
         if variant in STRUCTURED:
             kw["response_format"] = {"type": "json_schema", "json_schema": {"name": "observation", "schema": STRUCTURED[variant], "strict": True}}
-        r = client.chat.completions.create(model=model, temperature=0, max_tokens=500, messages=msgs,
+        r = client.chat.completions.create(model=model, temperature=0, max_tokens=800 if variant == "graph" else 500, messages=msgs,
                                            extra_body=NO_THINK.get(model, {}), **kw)
         content = r.choices[0].message.content or ""
         usage = [r.usage.prompt_tokens, r.usage.completion_tokens] if r.usage else None
@@ -295,9 +334,11 @@ def run_one(cfg, q):
         content_doors = dw if isinstance(dw, list) else None
     else:
         content_doors = None
+    openings = parsed.get("openings") if parsed and variant in ("graph", "exits") and isinstance(parsed.get("openings"), list) else None
     rec = {"doorways": content_doors, "cfg": cfg, "frame": name, "target": target, "positive": positive, "latency": round(dt, 2), "usage": usage,
            "error": err, "raw": content[-600:], "visible": t.get("visible") is True, "parse_ok": parsed is not None,
-           "size": [im.width, im.height], "occluded": t.get("occluded")}
+           "size": [im.width, im.height], "occluded": t.get("occluded"),
+           "area": (parsed or {}).get("area") if variant == "graph" else None, "openings": openings}
     w, h = im.width, im.height
     if rec["visible"]:
         try:
@@ -325,7 +366,7 @@ def run_one(cfg, q):
                 x0, y0, x1, y1 = b
                 rec["box"] = [max(0, min(x0, x1)), max(0, min(y0, y1)), min(1, max(x0, x1)), min(1, max(y0, y1))]
                 rec["conv"] = conv
-            elif variant in ("bboxunit", "final", "finalocc"):
+            elif variant in ("bboxunit", "final", "finalocc", "graph", "exits"):
                 b = [float(v) for v in t.get("bbox")]
                 conv = "unit" if max(b) <= 1.0 else "k"
                 if conv == "k":

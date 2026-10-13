@@ -2,7 +2,7 @@
 
 Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, Kimi-K2.6 localizza i bersagli (bounding box) e descrive la scena, di default senza YOLO (`NEBIUS_PERCEPTION=vlm`); con `NEBIUS_PERCEPTION=yolo` YOLO locale aiuta sui bersagli COCO (vedi `docs/CHANGELOG.md`). Il progetto è un workspace DUA (dotX Automation), ROS 2 Jazzy.
 
-Documentazione dettagliata: `README.md` (come testare), `src/README.md` (flusso completo), `docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md` (agente), `docs/CHANGELOG.md` e `docs/CONFRONTO_PERCEZIONE.md` (percezione: scelte e numeri). Immagini dei docs in `docs/img/`. Docs e messaggi all'utente in italiano, codice e commenti in inglese.
+Documentazione dettagliata: `README.md` (come testare), `src/README.md` (flusso completo), `docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md` (agente), `docs/CHANGELOG.md` e `docs/CONFRONTO_PERCEZIONE.md` (percezione: scelte e numeri), `docs/ESPLORAZIONE_GRAFO.md` (esplorazione senza mappa: grafo dei luoghi, misure). Immagini dei docs in `docs/img/`. Docs e messaggi all'utente in italiano, codice e commenti in inglese.
 
 ## Dove gira tutto: container DUA
 
@@ -47,6 +47,7 @@ ros2 launch go2_sim_worlds go2_sim.launch.py world:=house        # oppure ldc25;
 ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=map   # Nav2 + AMCL; nav:=slam senza mappa
 ./scripts/run_nebius_agent.sh "cerca il frigorifero e vacci vicino"            # senza YOLO (default)
 NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "..."         # con YOLO per i bersagli COCO
+NEBIUS_EXPLORE_CHOICE=vision ./scripts/run_nebius_agent.sh "..."   # senza mappa: grafo dei luoghi e scelta di Kimi (default: spazio libero)
 gz service -s /world/default/set_pose --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout 3000 \
   --req 'name: "dottorcane", position: {x: 0.0, y: 1.5, z: 0.30}, orientation: {x: 0, y: 0, z: 0, w: 1}'   # robot allo spawn della casa, senza rilanciare
 ros2 topic pub --once /dottorcane/go2_control/cmd_vel geometry_msgs/msg/Twist "{}"   # stop
@@ -76,6 +77,7 @@ Per il monorepo TypeScript (adapter Nebius, server MCP, core, convenzioni) vedi 
 - **Niente pavimenti in trimesh sottile:** pavimenti e tappeti in mesh di pochi mm/cm fanno affondare i piedi e il robot collassa a z ≈ 0,09. Togli la loro collisione e lascia camminare il robot sul ground plane.
 - Per verificare un world o una modifica alla sim: headless con `gui:=false`, poi controlla `real_time_factor` (`gz topic -e -n 1 -t /stats`), la z di `/gz/dottorcane/pose` dopo l'avvio e lo spostamento con un `cmd_vel` breve. Riferimento su LDC25: RTF 1,0, camera ~5 Hz; nella casa ~2,5–3 Hz.
 - Warning `A new JointTrajectory message was received...` ed eccezioni allo shutdown sono noti e innocui.
+- **Calibrazione dei movimenti.** `run_nebius_agent.sh` imposta `NEBIUS_TURN_EFFICIENCY=0.77` e `NEBIUS_FORWARD_EFFICIENCY=0.84`, misurati headless con real time factor 1,0 (−90° → −91…−93°, 1 m → 0,97 m). I comandi sono temporizzati in secondi reali: con una sim più lenta (GUI, RTF < 1) scalali per l'RTF. Dopo modifiche a gait o sim ricontrollali con `AGENTICROS_DEBUG_POSE_TOPIC=/gz/dottorcane/pose` (solo log): la direzione stimata è la base del grafo dei luoghi senza mappa.
 - **Nav2 e librerie.** L'underlay DUA ha BehaviorTree.CPP 4.9 prima di quello di Jazzy nel `LD_LIBRARY_PATH`: `go2_nav.launch.py` mette `/opt/ros/jazzy/lib` in testa per i processi Nav2. `ros-jazzy-diagnostic-updater` dell'immagine base è più vecchio di Nav2 (`undefined symbol diagnostic_updater::Updater`): il Dockerfile lo aggiorna; in un container vecchio `sudo apt-get install --only-upgrade ros-jazzy-diagnostic-updater`.
 - **Uccidere processi.** `pkill -f "<testo>"` uccide anche la shell che lo esegue se il testo compare nella sua riga di comando: usa un pattern come `"[g]z sim"`, e non mettere nella stessa riga di comando il nome in chiaro (es. un `grep "gz sim"` dopo il `pkill`): la shell verrebbe uccisa lo stesso.
 - **Test della percezione**: la posa reale (`/gz/dottorcane/pose`) e le pose degli oggetti in `house.world` servono solo a verificare l'arrivo dall'esterno; non vanno mai passate all'agente.
