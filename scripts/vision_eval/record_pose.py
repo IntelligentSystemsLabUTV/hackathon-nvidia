@@ -8,6 +8,7 @@ import time
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
@@ -30,4 +31,7 @@ def on_pose(msg):
 rclpy.init()
 node = Node("closed_loop_pose_recorder")
 node.create_subscription(PoseStamped, topic, on_pose, qos_profile_sensor_data)
-rclpy.spin(node)
+try:
+    rclpy.spin(node)
+except (KeyboardInterrupt, ExternalShutdownException):
+    pass  # stopped by closed_loop_matrix.sh at the end of the series

@@ -194,6 +194,8 @@ Variabili con default impostati da `run_nebius_agent.sh` (sovrascrivibili in `.e
 | `NEBIUS_DEPTH_TOPIC` | `/dottorcane/slam/zed_x_driver/depth_distances` | Immagine di profondità (32FC1, allineata alla camera sinistra) |
 | `NEBIUS_CAMERA_HFOV_DEG` | `110` | Campo visivo orizzontale della ZED X simulata |
 | `NEBIUS_TURN_EFFICIENCY` | `0.77` | Frazione della rotazione comandata ottenuta dal passo CHAMP (misurata headless con RTF 1,0: −90° → −91…−93°); con RTF < 1 va scalata per l'RTF |
+| `NEBIUS_IMU_TOPIC` | `/dottorcane/slam/zed_x_driver/imu` | IMU il cui giroscopio misura le rotazioni (`ros2_imu_yaw`): la direzione stimata usa la rotazione misurata e una rotazione bloccata fa indietreggiare il robot. Vuoto: somma delle rotazioni comandate |
+| `NEBIUS_DEPTH_CORRIDOR` | `on` | `off`: lo spazio libero davanti viene solo dalla fascia sopra l'orizzonte, senza il corridoio 3D che vede gli oggetti bassi |
 | `NEBIUS_FORWARD_EFFICIENCY` | `0.84` | Frazione dell'avanzamento comandato ottenuto (misurata come sopra: 1 m → 0,97 m) |
 | `GO2_WORLD` | `house` | World lanciato: sceglie il file delle stanze |
 | `AGENTICROS_PLACES_PATH` | `src/go2_sim_worlds/config/places/${GO2_WORLD}.json` | Stanze con nome per `ros2_navigate_to_place` (usate solo con `nav:=map`) |

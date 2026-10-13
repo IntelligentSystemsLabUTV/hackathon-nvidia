@@ -2,6 +2,37 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 13 ottobre 2026 (pomeriggio): direzione dall'IMU, ostacoli bassi, sblocco delle rotazioni
+
+La prima serie A/B senza mappa aveva mostrato che il problema era il corpo del robot, non la scelta della direzione. Queste modifiche lo affrontano; misure e dettagli in [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md).
+
+### In breve
+
+- **Direzione dall'IMU**: la direzione stimata usa la rotazione misurata dal giroscopio della camera (nuovo tool `ros2_imu_yaw`, `NEBIUS_IMU_TOPIC`), non più quella comandata. Vicino ai mobili le rotazioni ne fanno anche il 40%, o niente.
+- **Oggetti bassi**: il nuovo tool `ros2_depth_corridor` vede, in un corridoio 3D largo quanto il corpo, gli ostacoli più bassi della camera (cestino, tavolino, porta-manubri). Offline gli ostacoli mancati scendono da 5 a 1 su 31 frame.
+- **Sblocco delle rotazioni**: se una rotazione gira meno di metà del comando, il robot fa un passo avanti, una svolta nel verso opposto, poi indietro, e alla fine si ferma dicendo che è bloccato.
+- **Verifica sul ritaglio**: il modello nomina l'oggetto prima di dire se è il bersaglio. I tavoli accettati come scrivania scendono da 34 a 6 su 49.
+- **Transport locale**: rispetta `queueLength`. L'IMU a 100 Hz perdeva messaggi con la coda di default da 10, e la direzione arrivava a sbagliare di 27°.
+- **Risultato**: nella seconda serie A/B il letto è stato raggiunto 5 volte su 6, contro 2 su 6 della prima. Missioni con esplorazione: `vision` 2 su 5, `open` 3 su 5. Il default resta `open`.
+
+### Seconda serie A/B
+
+| Missione | `vision` | `open` |
+|---|---|---|
+| letto, dallo spawn | 2 su 3 (21 e 29 passi) | 3 su 3 (36–37 passi) |
+| scrivania, dallo spawn | 0 su 2 | 0 su 2 (due falsi arrivi su una struttura del soggiorno, "reception desk") |
+
+Le rotazioni comandate a meno di 0,4 m da un ostacolo sono scese da 85 su 330 a 15 su 222. A fine corsa la direzione è entro ±10° in 8 corse su 10, mentre nella prima serie l'errore superava i 140° in 3 corse su 9.
+
+### Insidia della simulazione
+
+Dopo che il robot è rimasto incastrato contro il porta-manubri della palestra, la sim è rimasta degradata fino al riavvio: −90° comandati diventavano −57…−68° e una camminata dritta curvava di 90°. Prima di una serie conviene rilanciare la sim e controllare le rotazioni con `scripts/vision_eval/imu_check.sh`.
+
+### Resta aperto
+
+- La scrivania: dallo spawn la regola dello spazio libero porta il robot davanti alla struttura del soggiorno, che la verifica accetta come "reception desk".
+- L'IMU a volte misura il 3–5% in meno su ogni rotazione: in una corsa la direzione ha sbagliato di 44° alla fine. La causa non è chiara.
+
 ## 13 ottobre 2026: grafo dei luoghi, deviazione intorno agli ostacoli e serie A/B senza mappa
 
 Sempre la modalità senza mappa (`nav:=none`). Studio completo, misure e immagini: [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md); numeri grezzi: [RISULTATI.md](../scripts/vision_eval/RISULTATI.md).
@@ -9,7 +40,7 @@ Sempre la modalità senza mappa (`nav:=none`). Studio completo, misure e immagin
 ### In breve
 
 - **Grafo dei luoghi con la scelta di Kimi** (`NEBIUS_EXPLORE_CHOICE=vision`): ogni giro è un nodo con le direzioni già percorse, e Kimi sceglie dove camminare guardando tutte le viste del giro. Offline sceglie meglio della direzione più aperta (58–65% contro 38% delle camminate verso la stanza del bersaglio). A ciclo chiuso, però, su 16 corse entrambe le modalità hanno raggiunto letto e scrivania 1 volta su 5, quindi **il default resta `open`**.
-- **Il limite vero è il corpo**: il robot si incastra contro oggetti bassi che la profondità frontale non vede (cestino, tavolino, manubrio). Lì le rotazioni riescono in mediana al 40%, e la direzione stimata deriva fino a 180°.
+- **Il limite vero è il corpo**: il robot si incastra contro oggetti bassi che la profondità frontale non vede (cestino, tavolino, porta-manubri). Lì le rotazioni riescono in mediana al 40%, e la direzione stimata deriva fino a 180°.
 - **Calibrazione dei movimenti corretta**: `NEBIUS_TURN_EFFICIENCY=0.77` e `NEBIUS_FORWARD_EFFICIENCY=0.84` in `run_nebius_agent.sh`. Con 0,65/0,7 il robot girava e camminava il 20% in più del comandato.
 - **Meno falsi arrivi e meno bersagli persi**: un primo avvistamento già vicino e che riempie l'immagine non si conferma per ripetizione, nemmeno a distanza ignota; `face_target` entro 12° dal centro è rifiutato a favore di `approach_target`.
 - **Deviazione intorno agli ostacoli**: con il bersaglio confermato, se il robot è bloccato o non ha spazio per avanzare, gira di 40° e cammina fino a 0,7 m, poi riprova dall'altro lato. Si arrende dopo 3 deviazioni.

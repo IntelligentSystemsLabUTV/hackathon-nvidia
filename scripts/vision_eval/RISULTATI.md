@@ -119,9 +119,58 @@ Rotazioni comandate di almeno 60° nelle corse con esplorazione (`closed_loop_tr
 |---|---|---|---|
 | < 0,4 m | 85 | 0,40 | 61 |
 | 0,4–0,8 m | 56 | 0,97 | 5 |
-| 0,8–1,2 m | 87 | 0,97 | 9 (accanto al manubrio, assente dalla mappa) |
+| 0,8–1,2 m | 87 | 0,97 | 9 (accanto al porta-manubri, assente dalla mappa) |
 | > 1,2 m | 102 | 0,97 | 0 |
 
 Deriva della direzione stimata sulle righe `[Explore]`, a fine corsa: oltre 140° in 3 corse su 9. Errore di posizione dei luoghi del grafo (corse `vision`): fino a 3,2 m e fino a 10,1 m.
 
 Prove singole allo spigolo, prima della serie, partendo a 0,5–1,7 m dal varco ovest: 3 arrivi al letto su 4 (2,23–2,40 m). La quarta si è arresa davanti al telaio, con il letto confermato a 3,2 m.
+
+### Dopo la serie A/B: corridoio, verifica sul ritaglio, IMU
+
+**Spazio libero davanti** (`corridor_eval.py`, 63 frame della casa con posa; verità: mappa, vetrate escluse, larghezza del corpo ±0,25 m). Sui 31 frame con un ostacolo entro 2 m dalla camera:
+
+| Misura | Errore mediano | Sovrastime > 0,5 m | Sottostime > 0,5 m |
+|---|---|---|---|
+| fascia sopra l'orizzonte (x 0,4–0,6, y 0,25–0,5, 12° percentile) | +0,04 m | 5 | 0 |
+| minimo fra fascia e corridoio 3D (5 cm–1 m da terra, 25° pixel più vicino) | −0,02 m | 1 | 1 |
+
+**Verifica sul ritaglio** (`verify_eval.py`, Kimi-K2.6, 176 ritagli: 45 del bersaglio, 131 di oggetti simili):
+
+| Prompt | Bersagli confermati | Sosia accettati | letto | divano | scrivania | frigo | armadio |
+|---|---|---|---|---|---|---|---|
+| prima la risposta | 38/45 | 46/131 | 3/3, divani 6/20 | 16/20, letti 2/3 | 2/3, tavoli 34/49 | 14/14, mobili 2/16 | 3/5, sosia 2/43 |
+| prima il nome | 27/45 | 10/131 | 0/3, divani 4/20 | 11/20, letti 0/3 | 2/3, tavoli 4/49 | 12/14, mobili 2/16 | 2/5, sosia 0/43 |
+| prima il nome, parti incluse | 35/45 | 19/131 | 3/3, divani 8/20 | 13/20, letti 0/3 | 2/3, tavoli 6/49 | 14/14, mobili 4/16 | 3/5, sosia 1/43 |
+
+**Direzione dall'IMU** (`imu_check.sh`: 8 rotazioni da −90° attraverso il server MCP, ognuna seguita da fotogramma, profondità e corridoio; verità: posa di Gazebo a 1 Hz). Differenza fra IMU e verità a robot fermo: con la coda di default (10 messaggi) da −5° a +27°, oscillante; con la coda di 500 fra −3° e −8° dopo 720°, e in una seconda prova, su una sim appena riavviata, fra −2° e +9° dopo 704° (con un salto di +8° a robot fermo che la posa vera non mostra). Sulla sim nuova −90° comandati diventano −88° veri; sulla sim degradata dopo un incastro (vedi sotto) −57…−68°.
+
+### A ciclo chiuso: seconda serie A/B (13 ottobre 2026, pomeriggio, 10 corse)
+
+Con direzione dall'IMU, corridoio, sblocco delle rotazioni e verifica con il nome prima; sim rilanciata prima della serie. Distanza finale dalla traiettoria registrata.
+
+| Corsa | Modalità | Passi | Esito | Esplorazioni | Distanza finale | Note |
+|---|---|---|---|---|---|---|
+| letto 1 | vision | 21 | **arrivato** | 1 | 2,39 m | |
+| letto 1 | open | 36 | **arrivato** | 3 | 2,28 m | |
+| scrivania 1 | vision | 77 | non trovata | 7 | 12,6 m | sempre nel centro; 1 sblocco |
+| scrivania 1 | open | 14 | falso arrivo | 1 | 10,7 m | "reception desk" nel soggiorno |
+| letto 2 | vision | 29 | **arrivato** | 1 | 2,39 m | |
+| letto 2 | open | 36 | **arrivato** | 3 | 2,38 m | |
+| scrivania 2 | vision | 69 | tempo esaurito | 4 | 6,8 m | 4 sblocchi |
+| scrivania 2 | open | 12 | falso arrivo | 1 | 10,5 m | "reception desk" nel soggiorno |
+| letto 3 | vision | 80 | passi esauriti | 6 | 10,0 m | centro ed est |
+| letto 3 | open | 37 | **arrivato** | 3 | 2,36 m | |
+
+Missioni con esplorazione: `vision` 2 su 5, `open` 3 su 5 (prima serie: 1 su 5 ciascuna). Letto: 5 su 6 (prima serie 2 su 6).
+
+Rotazioni comandate di almeno 60° (`closed_loop_traj.py --rotations`, 222):
+
+| Distanza dall'ostacolo | Rotazioni | Mediana | Sotto il 70% |
+|---|---|---|---|
+| < 0,4 m | 15 | 0,87 | 7 |
+| 0,4–0,8 m | 63 | 0,97 | 1 |
+| 0,8–1,2 m | 46 | 0,98 | 0 |
+| > 1,2 m | 98 | 0,98 | 0 |
+
+Errore della direzione stimata a fine corsa: entro ±10° in 8 corse su 10, +25° e +44° nelle altre due (`vision`). Due serie precedenti sono state scartate: una interrotta per il robot incastrato nel porta-manubri, con il recupero precedente (2 marce indietro), e una girata su una sim degradata (rotazioni al 65%, `*_aborted`, `*_degraded` in `results/closed_loop/`).

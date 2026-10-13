@@ -38,6 +38,9 @@ Tutto va eseguito nel container, da questa cartella. `.env` viene caricato dagli
 | `closed_loop.sh`, `hydrant_run.sh`, `pose_now.sh`, `dist_to.py` | corse a ciclo chiuso con verifica dell'arrivo sulla posa reale (`START="x y yaw"` per partire da un altro punto) |
 | `closed_loop_matrix.sh` | serie di corse da un file di specifica (nome, `NEBIUS_EXPLORE_CHOICE`, partenza, bersaglio, richiesta); una riga per corsa in `results/closed_loop/summary.tsv`. Durante la serie registra la posa vera con `record_pose.py` (solo valutazione) |
 | `record_pose.py`, `stamp_log.py` | posa vera a 1 Hz con l'orario; copia del log della corsa con l'orario davanti a ogni riga (`.tslog`), per allinearlo alla traiettoria |
+| `corridor_eval.py` | spazio libero davanti dai frame di profondità: fascia sopra l'orizzonte (quella dell'agente) contro il corridoio 3D davanti al corpo, con la mappa come verità |
+| `verify_eval.py` | verifica sul ritaglio (bersaglio o sosia) con tre prompt, su ritagli tagliati come nell'agente intorno ai riquadri veri |
+| `imu_check.sh`, `imu_check.mjs` | direzione dal giroscopio (`ros2_imu_yaw`) contro la posa vera, attraverso il server MCP e con il carico dell'agente (sim in esecuzione) |
 | `closed_loop_traj.py` | dalle traiettorie vere: percorso, distanza minima dal bersaglio, zone attraversate, errore della posizione e della direzione stimate dal grafo; `--rotations` rotazioni eseguite rispetto alla distanza dagli ostacoli; `--plot` figura delle traiettorie |
 | `topo_eval.py` | aperture riportate dal modello vision (porte, passaggi, vetrate) e tipo di zona, contro `house_topology.json` proiettata in ogni frame; `--truth` stampa cosa è visibile in ogni frame |
 | `explore_choice_eval.py` | dove esplorare dopo un giro senza bersaglio: modello vision sul mosaico delle viste, Nemotron sulle descrizioni, porte, spazio libero; misura il progresso a piedi (distanza geodetica sulla mappa) verso la zona del bersaglio |

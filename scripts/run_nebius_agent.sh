@@ -55,6 +55,10 @@ export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-110}"
 # the simulation runs slower (real_time_factor < 1), scale both by that factor.
 export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-0.77}"
 export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-0.84}"
+# Heading from the gyroscope of the ZED IMU (ros2_imu_yaw): rotations commanded next to low
+# furniture turn far less than commanded. NEBIUS_IMU_TOPIC= (empty) keeps the commanded turns.
+# In simulation the IMU has no noise model, so the integrated heading is close to ideal.
+export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-/dottorcane/slam/zed_x_driver/imu}"
 
 # Ground-truth motion diagnostics are opt-in: they add ~6 s to every motion.
 # Enable with AGENTICROS_DEBUG_POSE_TOPIC=/gz/dottorcane/pose.

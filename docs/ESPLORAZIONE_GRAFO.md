@@ -7,8 +7,9 @@ La versione definitiva costruirà prima una mappa e poi la userà (Nav2, `nav:=m
 ## In breve
 
 - **Offline Kimi sceglie la direzione meglio della regola dello spazio libero.** Dopo un giro senza bersaglio, il 58–65% delle camminate scelte da Kimi avvicina alla stanza del bersaglio, contro il 38%; per l'ala ovest 74–82% contro 21%.
-- **A ciclo chiuso il vantaggio non si vede.** Su 16 corse nella casa simulata, 8 per modalità, nelle missioni che richiedono di esplorare (letto e scrivania dallo spawn) entrambe le modalità arrivano **1 volta su 5**. Per questo il default di `NEBIUS_EXPLORE_CHOICE` è `open`; `vision` resta disponibile.
-- **Il collo di bottiglia è il corpo, non la scelta.** Vicino a oggetti bassi che la profondità frontale non vede (cestino, tavolino, manubrio), il robot si incastra: le rotazioni comandate a meno di 0,4 m da un ostacolo riescono in mediana al 40%. La direzione stimata conta ogni comando come eseguito, quindi deriva fino a 180° e il grafo dei luoghi perde senso.
+- **A ciclo chiuso il vantaggio non si vede.** Nella prima serie (16 corse) letto e scrivania dallo spawn sono stati raggiunti 1 volta su 5 con entrambe le modalità; nella seconda (10 corse) 2 su 5 con `vision` e 3 su 5 con `open`. Per questo il default di `NEBIUS_EXPLORE_CHOICE` è `open`; `vision` resta disponibile.
+- **Il collo di bottiglia era il corpo, non la scelta.** Vicino a oggetti bassi che la profondità frontale non vedeva (cestino, tavolino, porta-manubri) il robot si incastrava. Le rotazioni comandate a meno di 0,4 m da un ostacolo riuscivano in mediana al 40%, e la direzione stimata, che contava ogni comando come eseguito, derivava fino a 180°.
+- **Correggendo il corpo il letto si raggiunge quasi sempre.** Con la direzione dall'IMU, il corridoio di profondità per gli oggetti bassi e lo sblocco delle rotazioni, il letto è arrivato in 5 corse su 6 contro 2 su 6. Le rotazioni vicino agli ostacoli sono scese da 85 a 15, e la direzione a fine corsa resta entro ±10° in 8 corse su 10. La scrivania (0 su 4) resta difficile: due volte il robot si è fermato davanti a una struttura del soggiorno che Kimi chiama "reception desk".
 - **Le corse hanno fatto emergere otto difetti, tutti corretti:** due falsi arrivi sul divano, un letto perso ricentrando, la calibrazione dei movimenti sbagliata del 20%, il robot fermo davanti al telaio di una vetrata (due casi), una deviazione senza spazio per svoltare e un timeout della camera che chiudeva il compito. Resta aperto un falso arrivo semantico: il tavolino preso per una scrivania.
 
 ## Il problema
@@ -169,29 +170,100 @@ Cosa mostrano le corse:
   | 0,8–1,2 m | 87 | 97% | 9 |
   | > 1,2 m | 102 | 97% | 0 |
 
-  Gli oggetti sono il cestino del soggiorno, il tavolino, i mobili bassi contro la parete sud e il manubrio della palestra, che non compare nemmeno nella mappa (i 9 casi fra 0,8 e 1,2 m). Il corridoio di profondità davanti al robot guarda sopra l'orizzonte e non li vede, quindi il robot ci cammina contro e poi non riesce a girare.
+  Gli oggetti sono il cestino del soggiorno, il tavolino, i mobili bassi contro la parete sud e il porta-manubri della palestra (0,4 × 1,4 m, alto 0,4 m, appena più della camera), che non compare nemmeno nella mappa (i 9 casi fra 0,8 e 1,2 m). Il corridoio di profondità davanti al robot guarda sopra l'orizzonte e non li vede, quindi il robot ci cammina contro e poi non riesce a girare.
 - **La direzione stimata deriva con le rotazioni fallite.** In 3 corse su 9, alla fine, la direzione stimata differiva da quella vera di più di 140°; nelle corse `vision` la posizione stimata dei luoghi sbagliava fino a 3,2 m in una e fino a 10 m in un'altra. Con una deriva così le direzioni "già esplorate" e il riconoscimento dei luoghi non corrispondono più alla casa.
 - **Falsi arrivi**: 2 corse `vision` su 8 sono finite su un oggetto sbagliato (divano per letto, tavolino per scrivania). Il primo è corretto dalla guardia estesa; il secondo è un errore semantico del modello vision, confermato anche dalla verifica sul ritaglio, e resta aperto.
 
 Le prove singole allo spigolo fatte prima della serie, partendo a 0,5–1,7 m dal varco ovest, sono arrivate al letto 3 volte su 4 (2,23–2,40 m dal centro del letto, cioè sul bordo). La quarta si è arresa davanti al telaio e ha portato alla deviazione per percorso bloccato.
 
+## Dopo la serie A/B: il corpo e la verifica
+
+La serie A/B ha indicato dove intervenire: la direzione stimata, gli oggetti bassi, le rotazioni bloccate e i falsi arrivi. Ecco le quattro modifiche, ognuna misurata.
+
+### Direzione dall'IMU (`imu-yaw.ts`, `policy.ts`)
+
+- Il server MCP integra la velocità angolare del giroscopio della camera ZED (`/dottorcane/slam/zed_x_driver/imu`, tool `ros2_imu_yaw`). L'orientamento serve solo per roll e pitch, cioè per proiettare la velocità sulla verticale. L'agente legge la direzione con ogni fotogramma e sostituisce la rotazione comandata con quella misurata, sia nella direzione stimata sia nei gradi del giro (`applyImuYaw`, log `[Heading] IMU: turned -41 deg, commanded -90 deg`).
+- In simulazione l'IMU non ha rumore e il suo orientamento coincide con la posa vera di Gazebo. Per questo si usa solo la velocità angolare, come con un IMU reale. La simulazione resta comunque ottimista: il giroscopio non ha bias.
+- La prima versione perdeva messaggi. Mentre il server convertiva il fotogramma della camera, la coda teneva solo gli ultimi 10 messaggi (0,1 s a 100 Hz), e la rotazione di assestamento dopo ogni movimento veniva integrata male. `imu_check.sh` fa 8 rotazioni da −90°, ognuna seguita da fotogramma, profondità e corridoio:
+
+  | Coda dell'IMU | Differenza dalla verità a robot fermo, su ~720° |
+  |---|---|
+  | 10 messaggi (default) | da −5° a **+27°**, oscillante |
+  | 500 messaggi | fra −3° e −8°; in una seconda prova, dopo un riavvio della sim, fra −2° e +9° |
+
+  Ora il transport locale rispetta `queueLength` e l'IMU usa una coda di 500. Resta un difetto che non ho spiegato: nella seconda prova, a robot fermo, l'IMU ha aggiunto +8° mentre la posa vera non cambiava. Per l'esplorazione un errore di ±10° dopo otto rotazioni va bene: senza IMU arrivava a 180°. Con `NEBIUS_IMU_TOPIC=` (vuoto) si torna alla somma dei comandi.
+
+### Ostacoli bassi: il corridoio (`depth.ts`, `agent.ts`)
+
+- `ros2_depth_corridor` ricava il punto 3D di ogni pixel di profondità (camera orizzontale a 0,385 m da terra, profondità planare). Tiene i punti davanti al corpo (±0,25 m di lato), fra 5 cm e 1 m da terra e più lontani di 0,3 m: in basso nell'immagine si vedono le zampe anteriori, a 0,10–0,15 m. Il 25° punto più vicino è l'ostacolo. Lo spazio libero davanti diventa il minimo fra la fascia sopra l'orizzonte e il corridoio (log `[Perception] obstacle in the corridor at 0.72 m (band above the horizon: 6.71 m)`). Si disattiva con `NEBIUS_DEPTH_CORRIDOR=off`.
+- Offline (`corridor_eval.py`) l'ho misurato su 63 frame della casa, con la mappa come verità (vetrate escluse, larghezza del corpo). Su 31 frame con un ostacolo entro 2 m, la fascia lo sovrastimava di oltre 0,5 m in 5 casi, il minimo con il corridoio in 1. In un caso lo sottostima di oltre 0,5 m: un oggetto che la mappa non ha. In palestra, per esempio, la fascia dava 4,24 m liberi e il corridoio 0,84 m, con la verità a 0,75 m.
+
+### Rotazione bloccata: come liberarsi (`policy.ts`)
+
+Due casi visti in simulazione. Fra cestino e tavolino 6 rotazioni da −90° di fila non hanno girato affatto. Accanto al porta-manubri il robot ha ruotato attorno al suo spigolo, girando il 30–47% del comando, finché non ci è rimasto incastrato con il posteriore: due marce indietro da 0,3 m non lo hanno liberato, e sono seguite 40 rotazioni a vuoto.
+
+Ora, se secondo l'IMU una rotazione di almeno 30° gira meno di metà del comando, il corpo sta toccando qualcosa di lato o dietro. Il robot prova in ordine queste mosse:
+
+1. un passo avanti di 0,3 m: si allontana da ciò che tocca, verso dove la profondità vede (se davanti non c'è spazio, indietro);
+2. 45° nel verso opposto;
+3. di nuovo avanti;
+4. indietro;
+5. di nuovo nel verso opposto.
+
+Dopo il primo tentativo il giro di ricerca continua nel verso opposto, scelto dal controllore anche se Nemotron chiede l'altro. Se il robot è ancora bloccato dopo le 5 mosse, si ferma: "Il robot è bloccato: non riesce a girare e i tentativi di liberarsi non sono bastati." (log `rotation blocked (IMU), unstick 1/5: stepping forward`). In una prova con la prima versione della sequenza (che cominciava indietro), il robot è partito con il posteriore già dentro il porta-manubri: non si è mosso di più di 4 cm con nessuna mossa e si è fermato dopo 11 passi, invece di consumarne 80.
+
+### Verifica sul ritaglio: prima il nome (`perception.ts`)
+
+La verifica chiedeva `{"match", "reason"}`, quindi il modello rispondeva prima di ragionare. `verify_eval.py` confronta tre prompt su 176 ritagli della casa, tagliati come nell'agente intorno ai riquadri veri: ognuno chiede un bersaglio sul bersaglio stesso o su oggetti che gli somigliano.
+
+| Prompt | Bersagli confermati | Sosia accettati | Tavoli come scrivania | Divani come letto |
+|---|---|---|---|---|
+| prima la risposta (precedente) | 38/45 | 46/131 | 34/49 | 6/20 |
+| prima il nome | 27/45 | 10/131 | 4/49 | 4/20 |
+| **prima il nome, parti incluse** | **35/45** | **19/131** | **6/49** | 8/20 |
+
+Il prompt con il solo nome scarta troppi bersagli veri. Chiama "ottoman" o "mattress" un letto visto da vicino, che è proprio la vista dell'arrivo. Con "o una parte di esso (un materasso è parte di un letto)" ne perde 3 su 45 e dimezza i sosia accettati. Il divano bianco della simulazione, visto dal basso, resta ambiguo con ogni prompt: Kimi lo chiama anche "bunk bed".
+
+### Seconda serie A/B
+
+Stesse condizioni della prima serie, con le quattro modifiche sopra, su una sim rilanciata subito prima (vedi le insidie in `CLAUDE.md`). Le corse sono 10, tutte di missioni che richiedono di esplorare: il frigorifero, che si vede già dal primo giro, è stato tolto.
+
+| Missione (partenza) | `vision` | `open` |
+|---|---|---|
+| letto, dallo spawn | **2 su 3**: 21 e 29 passi; una fallita con 6 esplorazioni fra centro ed est | **3 su 3**: 36–37 passi |
+| scrivania, dallo spawn | 0 su 2: 7 esplorazioni senza uscire dal centro; tempo esaurito | 0 su 2: due falsi arrivi, una struttura del soggiorno chiamata "reception desk" |
+| **missioni con esplorazione** | **2 su 5** (prima serie 1 su 5) | **3 su 5** (prima serie 1 su 5) |
+
+![Traiettorie della seconda serie](img/traiettorie-ab2.png)
+
+*Traiettorie vere delle 10 corse: `vision` in blu, `open` in arancione; in rosso le 8 rotazioni che hanno girato meno del 70%.*
+
+| | Prima serie | Seconda serie |
+|---|---|---|
+| letto raggiunto | 2 su 6 | **5 su 6** |
+| rotazioni ≥ 60° a meno di 0,4 m da un ostacolo | 85 su 330, girato in mediana 40% | **15 su 222, 87%** |
+| rotazioni sotto il 70% | 75 | **8** |
+| direzione a fine corsa | oltre 140° di errore in 3 corse su 9 | entro ±10° in 8 corse su 10; +25° e +44° in due corse `vision` |
+| sblocchi usati | — | in 2 corse (1 e 4 mosse); mai l'arresto per robot bloccato |
+
+Cosa mostrano le corse:
+
+- **Il corpo era il collo di bottiglia del letto.** Con il robot che gira davvero e una direzione stimata giusta, `open` arriva sempre, per la stessa strada: verso ovest, attraverso il varco. `vision` arriva prima quando Kimi sceglie bene (21 e 29 passi), ma dallo spawn a volte sceglie est, come nelle misure offline.
+- **La scelta di Kimi non batte ancora lo spazio libero**: 2 su 5 contro 3 su 5. Con tre corse per casella la differenza non è significativa, ma non c'è motivo di cambiare il default.
+- **La scrivania** sta in fondo alla camera, contro la finestra. Con `open` il robot non ci arriva mai, perché in 12–14 passi si ferma davanti a una struttura del soggiorno che Kimi e la verifica chiamano "reception desk": è uno dei 6 tavoli su 49 che la verifica con il nome prima accetta ancora. Con `vision` resta nel centro.
+- **La direzione dall'IMU** resta entro ±10° nella maggior parte delle corse. In una (+44°) l'IMU ha misurato circa il 3–5% in meno su ogni rotazione, uno scarto troppo piccolo per comparire nei log ma che si accumula.
+
 ## Limiti
 
-- **Lo spawn della casa** resta il caso peggiore per la scelta di Kimi: le porte a vetri con telaio di legno sembrano porte di camere e il varco vero è ai margini di due viste.
-- **Gli oggetti bassi non si vedono**: il corridoio di profondità davanti al robot guarda sopra l'orizzonte, quindi cestino, tavolino e manubrio non contano come ostacoli. Il robot ci cammina contro e poi le rotazioni falliscono (vedi la tabella sopra).
-- **La direzione e la posizione stimate derivano**: sono la somma dei comandi, e una rotazione bloccata conta come eseguita. Anche senza ostacoli la camminata devia di ~2° per pezzo da 3 s e una rotazione da 90° sbaglia di ±5°. Vicino ai mobili l'errore arriva a 180° in una corsa, e il riconoscimento dei luoghi già visti (1,5 m) non regge più.
-- **Falsi positivi semantici**: Kimi e la verifica sul ritaglio hanno preso un tavolino basso per una scrivania ("reception desk or counter").
+- **Lo spawn della casa** resta il caso peggiore per la scelta di Kimi: le porte a vetri con telaio di legno sembrano porte di camere, e il varco vero è ai margini di due viste.
+- **Falsi positivi semantici**: un tavolino o una struttura del soggiorno presi per una scrivania ("reception desk"), il divano bianco preso per un letto. La verifica con il nome prima li riduce, ma non li elimina.
+- **L'IMU simulato è ideale**: niente rumore né bias, quindi un IMU vero deriverà di più. Anche così l'integrazione nel server MCP sbaglia di qualche grado per rotazione in alcune corse (fino a +44° a fine corsa); la causa non è chiara.
+- **Il corridoio vede solo davanti**: durante una rotazione fianchi e posteriore spazzano un cerchio di ~0,4 m che la camera non vede. Lo sblocco interviene dopo, quando la rotazione non riesce.
+- **La marcia indietro è cieca**: nessun sensore dietro, quindi solo 0,3 m alla volta, e solo dopo un passo avanti o una svolta.
 - **Il vetro**: la profondità simulata vede attraverso le vetrate (ma non i telai), quindi una stanza dietro il vetro sembra raggiungibile; il letto visto attraverso una vetrata attira il robot contro il vetro.
 - **Il modello vision non è deterministico**: anche a temperatura 0 la stessa domanda può dare scelte diverse.
+- **Pochi numeri**: 3 corse per casella bastano a vedere un effetto grande (letto da 2 su 6 a 5 su 6), non a distinguere `vision` da `open`.
 - Con `nav:=map` tutto questo non serve: Nav2 porta il robot nella stanza giusta al primo colpo.
-
-## Prossimi passi possibili
-
-In ordine di guadagno atteso; nessuno è ancora implementato né misurato.
-
-1. **Direzione dall'IMU.** La camera ZED pubblica un'IMU (`/dottorcane/slam/zed_x_driver/imu`). La direzione integrata dalla velocità angolare non risente delle rotazioni bloccate, e un confronto fra comando e IMU dice subito se il robot non ha girato: sarebbe il segnale per indietreggiare. È un sensore di bordo, non la posa reale. Va verificato quanto deriva in simulazione e se il suo orientamento non sia, di fatto, la posa vera di Gazebo.
-2. **Ostacoli bassi.** Campionare la profondità anche sotto l'orizzonte, in fasce, e confrontarla con la distanza a cui ogni fascia vedrebbe il pavimento (`floorImageY` in `policy.ts`): una lettura più corta è un ostacolo.
-3. Ripetere la serie A/B: con il corpo che gira davvero, il vantaggio offline di Kimi potrebbe comparire anche a ciclo chiuso.
 
 ## Come ripetere le misure
 
@@ -206,4 +278,9 @@ cd ~/workspace/scripts/vision_eval
 bash -ic './closed_loop_matrix.sh spec.txt'
 # traiettorie, deriva del grafo, rotazioni rispetto agli ostacoli, figura
 ../../.venv/bin/python closed_loop_traj.py spec.txt --rotations --plot traiettorie.png
+# corridoio contro fascia sopra l'orizzonte (63 frame), verifica sul ritaglio (176 ritagli)
+../../.venv/bin/python corridor_eval.py
+../../.venv/bin/python verify_eval.py
+# direzione dall'IMU contro la posa vera, attraverso il server MCP (sim in esecuzione)
+bash -ic './imu_check.sh'
 ```
