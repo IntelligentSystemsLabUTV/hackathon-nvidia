@@ -53,3 +53,23 @@ agenticros_build_ros() {
 agenticros() {
   /home/neo/workspace/tools/agenticros/agenticros "$@"
 }
+
+# ROS 2 CLI on the real DottorCane from this machine: rmw_zenoh_cpp as a client
+# of the robot's zenoh router. Usage: dottorcane_zenoh <robot host or IP>
+dottorcane_zenoh() {
+  if [[ $# -ne 1 ]]; then
+    echo >&2 "Usage: dottorcane_zenoh <robot host or IP>"
+    return 1
+  fi
+  export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+  export ZENOH_CONFIG_OVERRIDE="mode=\"client\";connect/endpoints=[\"tcp/$1:7447\"];scouting/multicast/enabled=false"
+}
+
+# go2_control accepts cmd_vel only after the arm action; run dottorcane_zenoh first.
+dottorcane_arm() {
+  ros2 action send_goal -f /dottorcane/go2_control/arm dua_hardware_interfaces/action/Arm "{}"
+}
+
+dottorcane_disarm() {
+  ros2 action send_goal -f /dottorcane/go2_control/disarm dua_hardware_interfaces/action/Disarm "{}"
+}

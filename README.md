@@ -1,6 +1,6 @@
 # hackathon-nvidia
 
-Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, il modello vision (Kimi-K2.6) localizza i bersagli e descrive la scena, YOLO locale può aiutare sui bersagli COCO. Flusso completo: [`src/README.md`](src/README.md); simulazione: [`docs/GAZEBO_SETUP.md`](docs/GAZEBO_SETUP.md); agente: [`docs/NEBIUS_AGENTICROS.md`](docs/NEBIUS_AGENTICROS.md); ultime modifiche alla percezione: [`docs/CHANGELOG.md`](docs/CHANGELOG.md); confronto prima/dopo: [`docs/CONFRONTO_PERCEZIONE.md`](docs/CONFRONTO_PERCEZIONE.md).
+Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, il modello vision (Kimi-K2.6) localizza i bersagli e descrive la scena, YOLO locale può aiutare sui bersagli COCO. Flusso completo: [`src/README.md`](src/README.md); simulazione: [`docs/GAZEBO_SETUP.md`](docs/GAZEBO_SETUP.md); agente: [`docs/NEBIUS_AGENTICROS.md`](docs/NEBIUS_AGENTICROS.md); ultime modifiche alla percezione: [`docs/CHANGELOG.md`](docs/CHANGELOG.md); confronto prima/dopo: [`docs/CONFRONTO_PERCEZIONE.md`](docs/CONFRONTO_PERCEZIONE.md); Go2 reale: [`docs/GO2_REALE.md`](docs/GO2_REALE.md), checklist per le prove: [`docs/CHECKLIST_REALE.md`](docs/CHECKLIST_REALE.md).
 
 ## Come testare
 

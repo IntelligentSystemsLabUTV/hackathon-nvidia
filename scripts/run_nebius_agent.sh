@@ -31,6 +31,32 @@ if [[ -f "${workspace_dir}/.env" ]]; then
   load_env_file "${workspace_dir}/.env"
 fi
 
+# GO2_TARGET=real drives the real Go2 (DottorCane stack on the Jetson, rmw_zenoh_cpp)
+# instead of the Gazebo simulation.
+if [[ "${GO2_TARGET:-sim}" == "real" ]]; then
+  # Overrides ros2init's rmw_fastrtps_cpp: the DottorCane nodes only talk over zenoh.
+  export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+  export AGENTICROS_CONFIG_PATH="${AGENTICROS_CONFIG_PATH:-${workspace_dir}/config/agenticros.real.json}"
+  # Depth from the Livox Mid-360 projected into the front camera (go2_real.launch.py).
+  export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/agent/depth}"
+  # Default camera: the Go2 front camera of config/agenticros.real.json, rectified,
+  # HFOV from the projection matrix of dottorcane_bringup/config/go2_camera.yaml.
+  # Another camera (the USB camera): set NEBIUS_CAMERA_TOPIC and NEBIUS_CAMERA_HFOV_DEG
+  # to the HFOV that lidar_camera_depth prints at startup for the same camera.
+  export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-94.7}"
+  # Estimate for the standing Go2 (head camera ~4 cm above the base): measure it.
+  export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.36}"
+  # Not calibrated yet: the Unitree sport mode tracks velocity, unlike CHAMP in the
+  # simulation. Measure with "ruota a destra di 90 gradi e avanza di un metro".
+  export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-1.0}"
+  export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-1.0}"
+  export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-/dottorcane/go2_control/imu}"
+  export AGENTICROS_DEBUG_POSE_TOPIC="${AGENTICROS_DEBUG_POSE_TOPIC:-}"
+  exec node \
+    "${agenticros_dir}/packages/agenticros-nebius/dist/index.js" \
+    "$@"
+fi
+
 export AGENTICROS_CONFIG_PATH="${AGENTICROS_CONFIG_PATH:-${workspace_dir}/config/agenticros.json}"
 
 # Named places (rooms) of the simulated world, used when Nav2 runs

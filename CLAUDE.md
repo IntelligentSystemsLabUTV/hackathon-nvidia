@@ -2,7 +2,7 @@
 
 Quadrupede Unitree Go2 ("DottorCane") simulato in Gazebo Harmonic e guidato da AgenticROS con modelli su Nebius Token Factory: Nemotron decide le azioni, Kimi-K2.6 localizza i bersagli (bounding box) e descrive la scena, di default senza YOLO (`NEBIUS_PERCEPTION=vlm`); con `NEBIUS_PERCEPTION=yolo` YOLO locale aiuta sui bersagli COCO (vedi `docs/CHANGELOG.md`). Il progetto è un workspace DUA (dotX Automation), ROS 2 Jazzy.
 
-Documentazione dettagliata: `README.md` (come testare), `src/README.md` (flusso completo), `docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md` (agente), `docs/CHANGELOG.md` e `docs/CONFRONTO_PERCEZIONE.md` (percezione: scelte e numeri), `docs/ESPLORAZIONE_GRAFO.md` (esplorazione senza mappa: grafo dei luoghi, misure). Immagini dei docs in `docs/img/`. Docs e messaggi all'utente in italiano, codice e commenti in inglese.
+Documentazione dettagliata: `README.md` (come testare), `src/README.md` (flusso completo), `docs/GAZEBO_SETUP.md` (sim, ambienti, fix), `docs/NEBIUS_AGENTICROS.md` (agente), `docs/CHANGELOG.md` e `docs/CONFRONTO_PERCEZIONE.md` (percezione: scelte e numeri), `docs/ESPLORAZIONE_GRAFO.md` (esplorazione senza mappa: grafo dei luoghi, misure), `docs/GO2_REALE.md` (robot reale: stack DottorCane, zenoh, profondità dal lidar, procedura di prova). Immagini dei docs in `docs/img/`. Docs e messaggi all'utente in italiano, codice e commenti in inglese.
 
 ## Dove gira tutto: container DUA
 
@@ -27,11 +27,14 @@ docker compose down                                             # stop, dalla st
 | `src/ldc25_sim`, `champ*`, `dottorcane_description`, `go2_description`, `zed_description`, `velodyne_description`, `ros_gz_republish` | Stack del robot importato (CHAMP, URDF/SDF, sensori, bridge) | **ignorato** |
 | `src/agenticros` | Symlink a `tools/agenticros/ros2_ws/src` | symlink |
 | `tools/agenticros/` | Submodule AgenticROS (fork `ErLex20/agenticros`), monorepo pnpm; adapter Nebius in `packages/agenticros-nebius/src` | submodule |
+| `src/go2_real/` | Robot reale: `lidar_camera_depth.py` (Mid-360 → profondità allineata alla camera frontale), `go2_real.launch.py`, `rviz.launch.py robot:=<host>` (RViz via zenoh) | tracciato |
+| `docker/container-jetson6/` | Container DUA per la Jetson Orin AGX del Go2 (JetPack 6, Jazzy da sorgente, niente Nav2); `GO2_TARGET=real` | tracciato |
+| `config/agenticros.real.json` | Come `agenticros.json` per il robot reale: camera frontale del Go2 | tracciato |
 | `config/agenticros.json` | Topic camera e cmd_vel, limiti di sicurezza (0,25 m/s, 0,5 rad/s), `skillPaths` | tracciato |
 | `config/agenticros-skills/go2-nav2/` | Skill senza codice: capability `navigate_to` → azione Nav2 `navigate_to_pose` | tracciato |
 | `config/gazebo/{ldc25,house}/` | Modelli Gazebo pesanti; `config/gazebo/models` è un symlink a `ldc25/models` | ignorato |
 | `patches/sim-slip-fix.patch` | Fix allo stack sim ignorato (rampa di velocità, gait, bullet) | tracciato |
-| `scripts/run_nebius_agent.sh` | Avvia l'agente Nebius e imposta i default della sim | tracciato |
+| `scripts/run_nebius_agent.sh` | Avvia l'agente Nebius e imposta i default della sim; con `GO2_TARGET=real` quelli del robot reale (rmw_zenoh, profondità dal lidar) | tracciato |
 | `scripts/fetch_house_world.sh` | Scarica e adatta i modelli della casa | tracciato |
 | `scripts/vision_eval/` | Valutazione di modelli vision e YOLO su frame della sim con verità a terra (README e `RISULTATI.md`); frame, `.json`, `.jsonl` e `.log` solo in locale | script tracciati |
 
@@ -68,6 +71,10 @@ Per il monorepo TypeScript (adapter Nebius, server MCP, core, convenzioni) vedi 
 - MiniCPM-V-4_5 non sa dare coordinate (si usa con 9 colonne numerate) e a volte chiude il JSON con una `}` in più: serve il parser a graffe bilanciate di `vision.ts`.
 - Non accettano immagini: tutti i Nemotron, Qwen3.5-397B, GLM-5.2/5.3. Troppo lenti per il ciclo: DeepSeek-V4.1-Flash (p90 23–29 s), Kimi-K3, Qwen3.8-27B, GLM-5.3-Flash.
 - Un nuovo modello vision va aggiunto ai profili in `tools/agenticros/packages/agenticros-nebius/src/vision.ts` e misurato con `scripts/vision_eval/` prima di cambiarlo.
+
+## Robot reale
+
+Go2 EDU con Jetson Orin AGX e stack DottorCane (repo `IntelligentSystemsLabUTV/dottorcane`, branch `slam`: `ros2 launch dottorcane_bringup dottorcane_slam.launch.py`, nel suo container). Usa **rmw_zenoh_cpp** (router sulla porta 7447), mentre `ros2init` imposta Fast DDS: prima della CLI usa `dottorcane_zenoh` (nel cudev: `dottorcane_zenoh <host>`). `go2_control` accetta il cmd_vel solo dopo l'action `arm` (`dottorcane_arm`). Non ha camera di profondità: la RGB sarà la camera USB del DottorCane (monoculare, topic ancora da vedere; ripiego: camera frontale del Go2, 1280×720, HFOV 94,7°), le distanze vengono dal Livox Mid-360 (`go2_real`). I submodule dotX dello stack (`go2_stack`, ...) non sono accessibili con l'account attuale. Dettagli e domande aperte: `docs/GO2_REALE.md`.
 
 ## Insidie della simulazione
 

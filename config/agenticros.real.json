@@ -1,0 +1,22 @@
+{
+  "transport": {
+    "mode": "local"
+  },
+  "local": {
+    "domainId": 0
+  },
+  "robot": {
+    "name": "dottorcane",
+    "namespace": "",
+    "cameraTopic": "/dottorcane/go2_control/frontvideo/image_rect_color"
+  },
+  "teleop": {
+    "cmdVelTopic": "/dottorcane/go2_control/cmd_vel",
+    "speedDefault": 0.15
+  },
+  "safety": {
+    "maxLinearVelocity": 0.25,
+    "maxAngularVelocity": 0.5
+  },
+  "skillPaths": []
+}

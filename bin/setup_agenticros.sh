@@ -25,8 +25,15 @@ fi
 # ROS setup files legitimately inspect unset variables, so disable nounset only
 # while sourcing them and restore strict mode immediately afterwards.
 set +u
-# shellcheck disable=SC1091
-source /opt/ros/jazzy/setup.bash
+# x86 images install ROS under /opt/ros/jazzy, the Jetson ones build it from
+# source into /opt/ros/jazzy/install.
+if [[ -f /opt/ros/jazzy/setup.bash ]]; then
+  # shellcheck disable=SC1091
+  source /opt/ros/jazzy/setup.bash
+else
+  # shellcheck disable=SC1091
+  source /opt/ros/jazzy/install/setup.bash
+fi
 set -u
 
 cd "$WORKSPACE_ROOT"
@@ -35,7 +42,8 @@ cd "$WORKSPACE_ROOT"
 colcon build \
   --event-handlers console_direct+ \
   --symlink-install \
-  --continue-on-error
+  --continue-on-error \
+  "$@"
 
 AGENTICROS_INSTALL_COMPAT="$AGENTICROS_ROOT/ros2_ws/install"
 if [[ -L "$AGENTICROS_INSTALL_COMPAT" ]]; then
