@@ -5,6 +5,7 @@ find_package(ament_cmake REQUIRED)
 
 install(
   DIRECTORY
+    config
     launch
     rviz
   DESTINATION
@@ -14,6 +15,7 @@ install(
 install(
   PROGRAMS
     scripts/lidar_camera_depth.py
+    scripts/lidar_obstacle_scan.py
   DESTINATION
     lib/${PROJECT_NAME}
 )

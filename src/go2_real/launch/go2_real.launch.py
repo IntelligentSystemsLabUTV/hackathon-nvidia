@@ -9,7 +9,10 @@ router, go2_control (cmd_vel, front camera, IMU), the Livox Mid-360 and the TF.
 Started here:
   - lidar_camera_depth: /dottorcane/agent/depth, a 32FC1 depth image aligned with
     the agent's camera from the Mid-360 points, for ros2_depth_distance and
-    ros2_depth_corridor (the robot has no depth camera).
+    ros2_depth_corridor (the robot has no depth camera);
+  - lidar_obstacle_scan: /dottorcane/agent/scan_obstacles, a 360 deg LaserScan of
+    the Mid-360 points 10-70 cm above the floor, for Nav2 on a workstation
+    (go2_real_nav.launch.py); obstacle_scan:=false leaves it out.
 
 The camera is the one the agent sees (NEBIUS_CAMERA_TOPIC). Its frame must be in
 the TF tree; without a calibrated camera_info pass hfov_deg and camera_frame:
@@ -21,6 +24,7 @@ Like the DottorCane launch files, the nodes use rmw_zenoh_cpp.
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -28,6 +32,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 CAMERA_INFO_TOPIC = '/dottorcane/go2_control/frontvideo/camera_info'
 LIDAR_TOPIC = '/dottorcane/sensors/livox_lidar_driver/point_cloud'
 DEPTH_TOPIC = '/dottorcane/agent/depth'
+SCAN_TOPIC = '/dottorcane/agent/scan_obstacles'
 
 
 def generate_launch_description():
@@ -52,6 +57,12 @@ def generate_launch_description():
             'image_width', default_value='1280', description='Image width with hfov_deg'),
         DeclareLaunchArgument(
             'image_height', default_value='720', description='Image height with hfov_deg'),
+        DeclareLaunchArgument(
+            'obstacle_scan', default_value='true',
+            description='Also publish the obstacle LaserScan for Nav2'),
+        DeclareLaunchArgument(
+            'base_height', default_value='0.34',
+            description='Standing base height above the floor [m] (camera height - 0.04)'),
         Node(
             package='go2_real',
             executable='lidar_camera_depth.py',
@@ -72,5 +83,22 @@ def generate_launch_description():
                 ('points', LaunchConfiguration('points')),
                 ('depth', DEPTH_TOPIC),
                 ('depth/camera_info', DEPTH_TOPIC + '/camera_info'),
+            ]),
+        Node(
+            package='go2_real',
+            executable='lidar_obstacle_scan.py',
+            name='lidar_obstacle_scan',
+            namespace='dottorcane/agent',
+            output='screen',
+            emulate_tty=True,
+            condition=IfCondition(LaunchConfiguration('obstacle_scan')),
+            parameters=[{
+                'body_frame': 'dottorcane/base_link',
+                'odom_frame': 'dottorcane/odom',
+                'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),
+            }],
+            remappings=[
+                ('points', LaunchConfiguration('points')),
+                ('scan', SCAN_TOPIC),
             ]),
     ])

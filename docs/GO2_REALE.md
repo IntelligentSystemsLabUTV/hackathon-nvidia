@@ -14,7 +14,7 @@ Come far girare l'agente AgenticROS + Nebius sul Go2 EDU vero, con la Jetson Ori
 | IMU | ZED | `/dottorcane/go2_control/imu` |
 | Lidar | — | Mid-360 `/dottorcane/sensors/livox_lidar_driver/point_cloud`, frame `dottorcane/livox_mid360_link`, a x 0,273 m e z 0,141 m dalla base, inclinato di 30° in avanti |
 | Localizzazione | posa vera di Gazebo | EKF `/dottorcane/slam/ekf_global/odometry` e LIO-SAM `/dottorcane/slam/lio_sam/map_optimization/{pose,path,local_map}`; TF `map → dottorcane/odom → dottorcane/base_link` |
-| Nav2 | sì (`nav:=map\|slam`) | no: su JetPack 6 (Ubuntu 22.04) i pacchetti `ros-jazzy-*` non esistono e il ROS di base è compilato da sorgente. Non serve per le prime prove |
+| Nav2 | sì (`nav:=map\|slam`) | non sulla Jetson (su JetPack 6 i pacchetti `ros-jazzy-*` non esistono): gira sul PC, nel container cudev, collegato via zenoh (`go2_real_nav.launch.py`, vedi sotto) |
 
 Lo stack DottorCane si lancia nel suo container `dottorcane:jetson6`: `ros2 launch dottorcane_bringup dottorcane_slam.launch.py`. Serve la versione `slam`: `dottorcane.launch.py` non avvia il Mid-360.
 
@@ -95,6 +95,24 @@ agenticros_setup                     # agenticros_msgs + go2_real + pnpm install
 9. **Avvicinamento**: un oggetto a 2–3 m, per esempio `"vai vicino alla sedia"`. La posa di LIO-SAM serve a controllare l'arrivo dall'esterno, come la posa di Gazebo in sim. Non va passata all'agente.
 
 Per fermare il robot: `ros2 topic pub --once /dottorcane/go2_control/cmd_vel geometry_msgs/msg/Twist "{}"` (dopo `dottorcane_zenoh`), oppure `dottorcane_disarm`, che toglie il controllo via ROS. Il telecomando resta comunque il freno di emergenza. Nel container DottorCane c'è anche `killswitch` (`/dottorcane/go2_control/kill_switch`): probabilmente spegne i motori, quindi il robot cade. Usalo solo come ultima risorsa.
+
+## Nav2 dal PC, senza mappa
+
+Nav2 gira sul PC (container cudev) e si collega al router zenoh del cane come RViz. Sulla Jetson `go2_real.launch.py` pubblica anche `/dottorcane/agent/scan_obstacles`: uno scan a 360° con i punti del Mid-360 fra 10 e 70 cm dal pavimento (`lidar_obstacle_scan.py`, ultimi 0,3 s nel frame odom, corpo del robot tolto). In wifi passa così solo lo scan, non la nuvola intera. Dietro il robot il lidar inclinato guarda in alto: lì le direzioni vuote valgono NaN, per non cancellare gli ostacoli già segnati.
+
+```bash
+# Jetson: stack DottorCane, poi
+ros2 launch go2_real go2_real.launch.py            # profondità + scan ostacoli (base_height:=0.34)
+# PC, container cudev
+ros2 launch go2_real go2_real_nav.launch.py robot:=<IP della Jetson>
+ros2 launch go2_real go2_real_nav.launch.py robot:=<IP> map_topic:=<OccupancyGrid dello SLAM>   # con la mappa
+```
+
+- Parametri in `src/go2_real/config/nav2_go2_real.yaml`: quelli della sim, senza AMCL. La TF `map → dottorcane/odom` viene da LIO-SAM, l'odometria dall'EKF (`/dottorcane/slam/ekf_global/odometry`). La costmap globale è rolling, 30 × 30 m, fatta solo dallo scan; con `map_topic:=` aggiunge la `OccupancyGrid` dello SLAM come static layer.
+- Parte anche `agenticros_explore` (action `explore`), sulla costmap globale o su `map_topic`. L'agente sulla Jetson trova `navigate_to_pose` ed `explore` da solo all'avvio (`[Navigation] ...`); va riavviato dopo Nav2.
+- Il collision monitor scrive `/dottorcane/go2_control/cmd_vel` e ferma il robot se lo scan manca per più di 1 s. Prima serve `dottorcane_arm`.
+- Tempo reale (`use_sim_time: false`): gli orologi di Jetson e PC devono coincidere (chrony/NTP), altrimenti le TF vanno in errore di estrapolazione.
+- Verificato nel cudev con router zenoh locale, TF e scan finti: Nav2 attivo, action presenti, costmap 600 × 600 celle. Lo scan sintetico (pavimento con ±2 cm di rumore, scatola a 1 m, muro a 1,5 m, zampe) dà 1,0 m, 1,5 m, niente pavimento né zampe. Sul robot non ancora provato.
 
 ## Risposte dello stack DottorCane (20 ottobre)
 

@@ -27,7 +27,7 @@ docker compose down                                             # stop, dalla st
 | `src/ldc25_sim`, `champ*`, `dottorcane_description`, `go2_description`, `zed_description`, `velodyne_description`, `ros_gz_republish` | Stack del robot importato (CHAMP, URDF/SDF, sensori, bridge) | **ignorato** |
 | `src/agenticros` | Symlink a `tools/agenticros/ros2_ws/src` | symlink |
 | `tools/agenticros/` | Submodule AgenticROS (fork `ErLex20/agenticros`), monorepo pnpm; adapter Nebius in `packages/agenticros-nebius/src` | submodule |
-| `src/go2_real/` | Robot reale: `lidar_camera_depth.py` (Mid-360 → profondità allineata alla camera frontale), `go2_real.launch.py`, `rviz.launch.py robot:=<host>` (RViz via zenoh) | tracciato |
+| `src/go2_real/` | Robot reale: `lidar_camera_depth.py` (Mid-360 → profondità allineata alla camera frontale), `lidar_obstacle_scan.py` (scan ostacoli per Nav2), `go2_real.launch.py`, `go2_real_nav.launch.py robot:=<host>` (Nav2 sul PC via zenoh, senza mappa), `rviz.launch.py robot:=<host>` (RViz via zenoh) | tracciato |
 | `docker/container-jetson6/` | Container DUA per la Jetson Orin AGX del Go2 (JetPack 6, Jazzy da sorgente, niente Nav2); `GO2_TARGET=real` | tracciato |
 | `config/agenticros.real.json` | Come `agenticros.json` per il robot reale: camera frontale del Go2 | tracciato |
 | `config/agenticros.json` | Topic camera e cmd_vel, limiti di sicurezza (0,25 m/s, 0,5 rad/s), `skillPaths` | tracciato |
