@@ -15,8 +15,8 @@
     "speedDefault": 0.15
   },
   "safety": {
-    "maxLinearVelocity": 0.25,
-    "maxAngularVelocity": 0.5
+    "maxLinearVelocity": 1.0,
+    "maxAngularVelocity": 1.0
   },
   "skillPaths": []
 }

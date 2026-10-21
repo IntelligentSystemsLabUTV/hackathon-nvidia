@@ -2,7 +2,7 @@
 #
 # Started by `go2_sim.launch.py nav:=map` (map_server + AMCL + navigation).
 # Based on nav2_bringup/params/nav2_params.yaml (Jazzy 1.3) with:
-#   - frames of the robot (dottorcane/odom, dottorcane/base_link);
+#   - frames of the robot (map, dottorcane/base_link);
 #   - /dottorcane/scan: a LaserScan made from the ZED depth image (110 deg,
 #     0.15-8 m, about 0.39 m above the ground; there is no lidar), for AMCL;
 #   - /dottorcane/scan_obstacles: the ZED depth points between 6 and 70 cm above
@@ -24,7 +24,7 @@ amcl:
   ros__parameters:
     use_sim_time: true
     global_frame_id: map
-    odom_frame_id: dottorcane/odom
+    odom_frame_id: map
     base_frame_id: dottorcane/base_link
     scan_topic: /dottorcane/scan
     robot_model_type: nav2_amcl::DifferentialMotionModel
@@ -68,7 +68,7 @@ bt_navigator:
     use_sim_time: true
     global_frame: map
     robot_base_frame: dottorcane/base_link
-    odom_topic: /dottorcane/odom
+    odom_topic: /map
     bt_loop_duration: 10
     # ms to wait for a server to acknowledge a BT request. The default (20) aborts
     # whole navigations when Gazebo saturates the CPU and the planner answers late.
@@ -87,7 +87,7 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: true
-    odom_topic: /dottorcane/odom
+    odom_topic: /map
     # The ground-truth pose arrives at 10 Hz.
     controller_frequency: 10.0
     costmap_update_timeout: 0.3
@@ -146,7 +146,7 @@ local_costmap:
       use_sim_time: true
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: dottorcane/odom
+      global_frame: map
       robot_base_frame: dottorcane/base_link
       transform_tolerance: 0.5
       rolling_window: true
@@ -249,7 +249,7 @@ behavior_server:
       plugin: nav2_behaviors::BackUp
     wait:
       plugin: nav2_behaviors::Wait
-    local_frame: dottorcane/odom
+    local_frame: map
     global_frame: map
     robot_base_frame: dottorcane/base_link
     transform_tolerance: 0.5
@@ -269,7 +269,7 @@ velocity_smoother:
     min_velocity: [-0.15, 0.0, -0.5]
     max_accel: [0.5, 0.0, 1.0]
     max_decel: [-0.5, 0.0, -1.0]
-    odom_topic: /dottorcane/odom
+    odom_topic: /map
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
@@ -278,7 +278,7 @@ collision_monitor:
   ros__parameters:
     use_sim_time: true
     base_frame_id: dottorcane/base_link
-    odom_frame_id: dottorcane/odom
+    odom_frame_id: map
     cmd_vel_in_topic: cmd_vel_smoothed
     cmd_vel_out_topic: /dottorcane/go2_control/cmd_vel
     state_topic: collision_monitor_state

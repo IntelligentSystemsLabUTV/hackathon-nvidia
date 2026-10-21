@@ -45,7 +45,7 @@ def generate_launch_description():
             'points', default_value=LIDAR_TOPIC,
             description='Lidar PointCloud2'),
         DeclareLaunchArgument(
-            'camera_frame', default_value='',
+            'camera_frame', default_value='dottorcane/front_camera_link',
             description='TF frame of the camera (empty: frame_id of camera_info)'),
         DeclareLaunchArgument(
             'camera_convention', default_value='auto',
@@ -94,7 +94,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('obstacle_scan')),
             parameters=[{
                 'body_frame': 'dottorcane/base_link',
-                'odom_frame': 'dottorcane/odom',
+                'odom_frame': 'map',
                 'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),
             }],
             remappings=[

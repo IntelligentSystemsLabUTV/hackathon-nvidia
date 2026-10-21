@@ -140,8 +140,8 @@ Pezzi aggiunti (`launch/go2_nav.launch.py`, tutto in `go2_sim_worlds`):
   frame a terra con il solo yaw pubblicato da `ground_truth_odom.py`, così il
   filtro resta giusto mentre il corpo beccheggia. La nuvola di punti del bridge
   (~250k punti) arrivava sotto 1 Hz: ora è `lazy` e non viene usata.
-- **Odometria.** `scripts/ground_truth_odom.py` pubblica `/dottorcane/odom`
-  (`nav_msgs/Odometry`) e il TF `dottorcane/odom → dottorcane/base_link` dalla
+- **Odometria.** `scripts/ground_truth_odom.py` pubblica `/map`
+  (`nav_msgs/Odometry`) e il TF `map → dottorcane/base_link` dalla
   posa di Gazebo: il frame `odom` coincide con il world, come la mappa della casa.
   Con `nav:=map|slam` il TF di `ros_gz_republish` e lo statico `map → odom`
   sono disattivati: `map → odom` lo pubblica AMCL o SLAM.
@@ -201,7 +201,7 @@ Problemi risolti (da ricordare se si ricrea il container):
 /dottorcane/slam/zed_x_driver/left/image_rect_color/compressed  sensor_msgs/msg/CompressedImage (JPEG, per i viewer)
 /dottorcane/scan                                      sensor_msgs/msg/LaserScan (nav:=map|slam, dalla profondità)
 /dottorcane/scan_obstacles                            sensor_msgs/msg/LaserScan (nav:=map|slam, profondità 6-70 cm dal pavimento)
-/dottorcane/odom                                      nav_msgs/msg/Odometry (nav:=map|slam)
+/map                                      nav_msgs/msg/Odometry (nav:=map|slam)
 /dottorcane/slam/zed_x_driver/right/image_rect_color  sensor_msgs/msg/Image
 /dottorcane/slam/zed_x_driver/point_cloud             sensor_msgs/msg/PointCloud2
 /dottorcane/slam/zed_x_driver/imu                     sensor_msgs/msg/Imu

@@ -6,7 +6,7 @@
 
 The Jetson has no Nav2 (JetPack 6): this runs in the x86 container and talks to
 the robot's zenoh router as a client, like rviz.launch.py. On the Jetson, before:
-the DottorCane bringup (dottorcane_slam.launch.py: LIO-SAM map -> dottorcane/odom,
+the DottorCane bringup (dottorcane_slam.launch.py: LIO-SAM map -> map,
 EKF odometry) and go2_real.launch.py, which publishes the obstacle scan
 /dottorcane/agent/scan_obstacles from the Mid-360.
 

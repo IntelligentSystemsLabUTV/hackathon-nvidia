@@ -51,7 +51,7 @@ class LidarObstacleScan(Node):
         super().__init__('lidar_obstacle_scan')
         p = self.declare_parameter
         self.body_frame = p('body_frame', 'dottorcane/base_link').value
-        self.odom_frame = p('odom_frame', 'dottorcane/odom').value
+        self.odom_frame = p('odom_frame', 'map').value
         # Standing base height above the floor (camera at 0.38 m, 4 cm above the base).
         self.base_height = p('base_height', 0.34).value
         self.min_height = p('min_height', 0.10).value

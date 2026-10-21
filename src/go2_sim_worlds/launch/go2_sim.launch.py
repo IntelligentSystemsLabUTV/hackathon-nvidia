@@ -39,7 +39,7 @@ from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterFile
 
 PACKAGE = 'go2_sim_worlds'
-# Height of dottorcane/odom above the ground, as in the LDC25 launch.
+# Height of map above the ground, as in the LDC25 launch.
 ODOM_Z = 0.22
 CAMERA_TOPIC = '/dottorcane/slam/zed_x_driver/left/image_rect_color'
 
@@ -186,7 +186,7 @@ def launch_setup(context):
                 ],
                 remappings=[('/joint_states', '/dottorcane/joint_states')]),
         ] + ([] if nav != 'none' else [
-            # Static transform: map -> dottorcane/odom at the spawn pose
+            # Static transform: map -> map at the spawn pose
             # (with nav:=map|slam, AMCL or SLAM publishes it).
             ComposableNode(
                 package='tf2_ros',
@@ -194,7 +194,7 @@ def launch_setup(context):
                 name='map_to_dottorcane_odom_broadcaster',
                 parameters=[{
                     'frame_id': 'map',
-                    'child_frame_id': 'dottorcane/odom',
+                    'child_frame_id': 'map',
                     'translation.x': x,
                     'translation.y': y,
                     'translation.z': ODOM_Z,

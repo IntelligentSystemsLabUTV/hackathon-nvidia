@@ -4,7 +4,7 @@
 # Same planner, controller and limits as config/nav2_go2.yaml of go2_sim_worlds
 # (the simulation), with:
 #   - no AMCL / map_server: LIO-SAM of the DottorCane stack publishes
-#     map -> dottorcane/odom, the EKF the odometry;
+#     map -> map, the EKF the odometry;
 #   - /dottorcane/agent/scan_obstacles: the Mid-360 points 10-70 cm above the
 #     floor as a 360 deg LaserScan in dottorcane/base_link (go2_real.launch.py on
 #     the Jetson), for the costmaps and the collision monitor;
@@ -96,7 +96,7 @@ local_costmap:
       use_sim_time: false
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: dottorcane/odom
+      global_frame: map
       robot_base_frame: dottorcane/base_link
       transform_tolerance: 0.5
       rolling_window: true
@@ -197,7 +197,7 @@ behavior_server:
       plugin: nav2_behaviors::BackUp
     wait:
       plugin: nav2_behaviors::Wait
-    local_frame: dottorcane/odom
+    local_frame: map
     global_frame: map
     robot_base_frame: dottorcane/base_link
     transform_tolerance: 0.5
@@ -226,7 +226,7 @@ collision_monitor:
   ros__parameters:
     use_sim_time: false
     base_frame_id: dottorcane/base_link
-    odom_frame_id: dottorcane/odom
+    odom_frame_id: map
     cmd_vel_in_topic: cmd_vel_smoothed
     cmd_vel_out_topic: /dottorcane/go2_control/cmd_vel
     state_topic: collision_monitor_state

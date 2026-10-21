@@ -34,7 +34,7 @@ class GroundTruthOdom(Node):
 
     def __init__(self):
         super().__init__('ground_truth_odom')
-        self.odom_frame = self.declare_parameter('odom_frame', 'dottorcane/odom').value
+        self.odom_frame = self.declare_parameter('odom_frame', 'map').value
         self.base_frame = self.declare_parameter('base_frame', 'dottorcane/base_link').value
         self.ground_frame = self.declare_parameter('ground_frame', 'dottorcane/base_ground').value
         # Weight of the newest finite-difference velocity (1.0 = no filtering).
