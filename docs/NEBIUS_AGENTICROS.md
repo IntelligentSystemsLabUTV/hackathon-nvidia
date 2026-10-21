@@ -101,6 +101,24 @@ Prove (house, headless):
 - `nav:=slam`, mappa vuota, "vai in camera da letto" → `approach bed`: cinque frontiere (~11 minuti, due perse dietro il divano), poi il letto vero è visto da ~5 m e confermato; l'avvicinamento si è fermato a 2,3 m per il limite di 80 passi, perché Nemotron chiedeva passi da 10 cm (ora il minimo è 0,5 m). Ripartito da lì, "vai vicino al letto" arriva a 1,1 m dal letto in due passi.
 - Lungo la strada la verifica ha scartato divano e tavolo da pranzo presi per letti (YOLO 0,35–0,65).
 
+### Nav2 DUA, robot reale e `profile:=real` (dal 21 ottobre)
+
+Con il Nav2 DUA (`/dottorcane/dua_nav2/navigate_to_pose`, skill `config/agenticros-skills/go2-nav2-dua` in `agenticros.real.json`) e una stima di posa (`AGENTICROS_POSE_TOPIC`, l'EKF `/dottorcane/slam/ekf_global/odometry`; tool `ros2_robot_pose`) l'agente usa Nav2 anche dove prima andava a tempo con `cmd_vel`. Nemotron sceglie sempre gli stessi intent: cambia solo come il controller li esegue.
+
+| Intent | Quando passa a Nav2 | Goal (`ros2_navigate_to_pose`) | Variabile |
+|---|---|---|---|
+| `approach_target` | bersaglio confermato, box, distanza nota e non occluso, più di 1,5 m oltre la distanza di arrivo (`nav2ApproachGoal`) | sulla congiungente robot–bersaglio, 0,5 m prima della distanza di arrivo, rivolto al bersaglio; l'ultimo metro resta visivo | `NEBIUS_NAV2_APPROACH=on` |
+| `explore`, con `/explore` attivo | sempre (frontiere di `agenticros_explore`, `min_goal_distance_m` 1 m) | frontiera più vicina oltre 1 m | `NEBIUS_EXPLORE_ACTION=/explore` |
+| `explore`, senza frontiere | camminata verso la direzione scelta dal giro di ricerca | quella distanza in avanti | `NEBIUS_NAV2_WALK=on` |
+| `goto`, `remember` | posti della sessione (`NEBIUS_SESSION_PLACES=on`, `logs/places_session.json`) | la posa salvata | — |
+
+- Un viaggio conta se la posa si è spostata di almeno 0,3 m; altrimenti il controller ripiega sul movimento a tempo. La distanza percorsa, letta dalla posa, sostituisce quella comandata nella stima di posizione.
+- **Memoria del bersaglio.** Un avvistamento lontano salva la posizione del bersaglio nel frame `map`. Un avvistamento vicino nello stesso punto (entro 1,5 m) conta come "avvicinato" e non come primo avvistamento a distanza di arrivo (`closeFirstSighting`); finché il bersaglio non si vede, il giro di ricerca parte verso quella posizione.
+- **Posti della sessione.** "ricorda questo posto come cucina" salva la posa (`mode=remember`, `ros2_save_place`), e ogni bersaglio raggiunto diventa un posto con il nome del bersaglio ("torna dal frigorifero" → `goto refrigerator`). Valgono anche con `explore` attivo, perché il frame `map` di EKF + LIO-SAM resta lo stesso per tutta la sessione; al riavvio dello stack DottorCane il file va cancellato (la sim `profile:=real` lo fa da sola).
+- **Bersaglio vicino ma visto una volta sola.** Entro la distanza di arrivo, ma senza la seconda conferma richiesta agli avvistamenti del modello vision, l'agente guarda di nuovo senza muoversi invece di chiudere con "Nessuna azione sicura disponibile".
+
+Prove e misure in [CHANGELOG.md](CHANGELOG.md).
+
 ## Esplorazione senza mappa
 
 Senza Nav2 (o con `nav:=slam`) l'agente non usa la mappa della casa (`src/go2_sim_worlds/maps/house_world_map.{pgm,yaml}`): una richiesta come "vai in camera da letto" diventa "trova il letto e avvicinati".

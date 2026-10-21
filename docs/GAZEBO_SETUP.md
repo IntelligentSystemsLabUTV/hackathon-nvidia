@@ -47,6 +47,49 @@ ros2 launch ldc25-sim ldc25_dottorcane.launch.py \
 
 In alternativa si può impostare `LDC25_GAZEBO_MODELS_PATH` prima del launch.
 
+## Simulazione uguale al robot (`profile:=real`)
+
+`go2_sim.launch.py` ha due profili. `profile:=real`, il default, fa apparire il robot simulato come il DottorCane reale (stack `dottorcane` branch `slam` più `go2_real.launch.py`) a tutto ciò che sta sopra il simulatore:
+
+| | Simulazione `profile:=real` | Robot reale |
+| --- | --- | --- |
+| Camera | `/dottorcane/go2_control/frontvideo/{image_rect_color,camera_info}`, 1280×720, HFOV 94,7°, 10 Hz, frame `dottorcane/front_camera_link` (convenzione ottica) | idem (camera frontale del Go2) |
+| Lidar | `/dottorcane/sensors/livox_lidar_driver/point_cloud` e `/point_cloud/deskewed`, 360°×(−7°…52°), 10 Hz, frame `dottorcane/livox_mid360_link` a (0,273; 0; 0,141) m con pitch 30° | Mid-360, stessa posa (`dottorcane_slam.urdf`) |
+| IMU | `/dottorcane/go2_control/imu`, 200 Hz | idem |
+| Profondità | `/dottorcane/agent/depth` da `lidar_camera_depth.py` (nessuna camera di profondità) | idem |
+| Scan ostacoli | `/dottorcane/agent/scan_obstacles` da `lidar_obstacle_scan.py` | idem |
+| Localizzazione | `/dottorcane/slam/ekf_global/odometry` (50 Hz) e TF `map → dottorcane/base_link`, `map` alla posa di partenza sul pavimento: la posa di Gazebo (`ground_truth_odom.py`) fa da EKF + LIO-SAM | EKF + LIO-SAM |
+| Middleware | rmw_zenoh_cpp, router `zenohd` sulla macchina | rmw_zenoh_cpp, router sulla Jetson |
+| Nav2 | Nav2 DUA (`dua_nav2`, `dottorcane.launch.py use_sim_time:=true`) | Nav2 DUA sul PC |
+
+Le differenze che restano sono la locomozione (CHAMP: base a 0,22 m invece di 0,34 m, efficienze 0,77/0,84 in `run_nebius_agent.sh`) e il lidar, che non riproduce lo schema non ripetitivo del Mid-360. L'agente non legge mai `/gz/dottorcane/pose`: serve solo a verificare gli arrivi dall'esterno.
+
+I sensori vengono aggiunti a una copia dell'SDF di `dottorcane_description` all'avvio (`real_profile_sdf` nel launch), senza modificare il package ignorato: tolti ZED e camere laterali, aggiunti camera frontale e Mid-360, IMU rinominato.
+
+Avvio, con gli stessi passi del robot (container DUA di questo repo e di `dua_nav2`):
+
+```bash
+# hackathon-nvidia, nel container
+zenohd -c /etc/zenoh/rmw/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5        # router, una volta per macchina
+sim_zenoh                                                              # RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house gui:=false   # passi 1+2 del robot
+# dua_nav2, nel suo container
+RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 launch dua_nav2_bringup dottorcane.launch.py use_sim_time:=true
+# hackathon-nvidia
+ros2 launch go2_real go2_real_nav.launch.py nav2:=dua use_sim_time:=true
+./scripts/run_nebius_agent.sh "vai vicino al frigorifero"               # GO2_TARGET=sim è il default
+```
+
+Il processo `ros2 launch` deve già usare zenoh (`sim_zenoh`): carica le composable nel container con il proprio middleware, e con Fast DDS il bridge non partirebbe. Il launch si ferma con un errore esplicito se manca. Dopo un riavvio della sim riavvia anche Nav2 ed `explore` (il tempo simulato riparte da zero); il launch cancella anche `logs/places_session.json`, i posti della sessione precedente.
+
+Verifiche utili: `real_time_factor` 1,0 nella casa; la z dell'odometria a 0,22 m da fermo; con il robot fermo il corridoio di `ros2_depth_corridor` deve vedere fino alla parete, non il pavimento.
+
+`profile:=zed` è la simulazione precedente (ZED, `ros_gz_republish`, `nav:=map|slam` con il Nav2 di questo package), descritta nel resto di questo documento.
+
+### Package della simulazione
+
+I package ignorati da Git (`champ*`, `ldc25_sim`, `ros_gz_republish`, `dottorcane_description`, `go2_description`, `zed_description`) vengono da `dotX-gazebo` (`src/champ*`, `src/ldc25-sim` → `src/ldc25_sim`, `src/ros_gz_republish`, `src/ldc25-shared/dottorcane_description`, `src/go2_stack/src/go2_description`, `src/zed_drivers/src/zed_description`). Dopo la copia: `patch -p1 < patches/sim-slip-fix.patch`. `ldc25-sim` non dichiara la dipendenza da `zed_description` nel `package.xml`: alla prima build può fallire per l'ordine, un secondo `cbuild` la completa.
+
 ## Ambienti multipli
 
 Il package tracciato `src/go2_sim_worlds` lancia il Go2 in un ambiente a
@@ -140,8 +183,8 @@ Pezzi aggiunti (`launch/go2_nav.launch.py`, tutto in `go2_sim_worlds`):
   frame a terra con il solo yaw pubblicato da `ground_truth_odom.py`, così il
   filtro resta giusto mentre il corpo beccheggia. La nuvola di punti del bridge
   (~250k punti) arrivava sotto 1 Hz: ora è `lazy` e non viene usata.
-- **Odometria.** `scripts/ground_truth_odom.py` pubblica `/map`
-  (`nav_msgs/Odometry`) e il TF `map → dottorcane/base_link` dalla
+- **Odometria.** `scripts/ground_truth_odom.py` pubblica `/dottorcane/odom`
+  (`nav_msgs/Odometry`) e il TF `dottorcane/odom → dottorcane/base_link` dalla
   posa di Gazebo: il frame `odom` coincide con il world, come la mappa della casa.
   Con `nav:=map|slam` il TF di `ros_gz_republish` e lo statico `map → odom`
   sono disattivati: `map → odom` lo pubblica AMCL o SLAM.
@@ -201,7 +244,7 @@ Problemi risolti (da ricordare se si ricrea il container):
 /dottorcane/slam/zed_x_driver/left/image_rect_color/compressed  sensor_msgs/msg/CompressedImage (JPEG, per i viewer)
 /dottorcane/scan                                      sensor_msgs/msg/LaserScan (nav:=map|slam, dalla profondità)
 /dottorcane/scan_obstacles                            sensor_msgs/msg/LaserScan (nav:=map|slam, profondità 6-70 cm dal pavimento)
-/map                                      nav_msgs/msg/Odometry (nav:=map|slam)
+/dottorcane/odom                                      nav_msgs/msg/Odometry (nav:=map|slam)
 /dottorcane/slam/zed_x_driver/right/image_rect_color  sensor_msgs/msg/Image
 /dottorcane/slam/zed_x_driver/point_cloud             sensor_msgs/msg/PointCloud2
 /dottorcane/slam/zed_x_driver/imu                     sensor_msgs/msg/Imu

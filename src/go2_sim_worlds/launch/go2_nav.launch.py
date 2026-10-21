@@ -5,7 +5,7 @@ odom -> base_link transform to this launch (ros_gz_republish stops publishing
 it) and drops the static map -> odom transform (AMCL or SLAM publishes it).
 
 Started here:
-  - ground_truth_odom: /map + odom -> base_link from the Gazebo pose;
+  - ground_truth_odom: /dottorcane/odom + odom -> base_link from the Gazebo pose;
   - depthimage_to_laserscan: /dottorcane/scan from the ZED depth image (no lidar),
     a single plane at camera height, for AMCL / SLAM;
   - depth_obstacle_scan: /dottorcane/scan_obstacles from the whole depth image,
@@ -36,7 +36,7 @@ DEPTH_TOPIC = '/dottorcane/slam/zed_x_driver/depth_distances'
 DEPTH_INFO_TOPIC = '/dottorcane/slam/zed_x_driver/depth_camera_info'
 SCAN_TOPIC = '/dottorcane/scan'
 OBSTACLE_SCAN_TOPIC = '/dottorcane/scan_obstacles'
-ODOM_TOPIC = '/map'
+ODOM_TOPIC = '/dottorcane/odom'
 # Frame of the ZED depth sensor in Gazebo: x forward, level with the body.
 SCAN_FRAME = 'dottorcane/zedx_link'
 

@@ -1,0 +1,58 @@
+{
+  "name": "@hackathon-nvidia/go2-nav2-dua",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nav2 of the DottorCane (dua_nav2: dottorcane.launch.py, namespace /dottorcane/dua_nav2), on the real Go2 and in the real-like simulation (go2_sim.launch.py profile:=real). No code: declared for AgenticROS, which sends the goals and cancels them on ros2_estop.",
+  "agenticros": {
+    "id": "go2-nav2-dua",
+    "capabilities": [
+      {
+        "id": "navigate_to",
+        "verb": "navigate",
+        "description": "Navigate to a pose in the map frame with the DUA Nav2 (global plan, obstacle avoidance, Nav2 speed limits). Used by ros2_navigate_to_pose and ros2_navigate_to_place.",
+        "inputs": {
+          "x": {
+            "type": "number",
+            "description": "Map-frame x [m]."
+          },
+          "y": {
+            "type": "number",
+            "description": "Map-frame y [m]."
+          },
+          "yaw": {
+            "type": "number",
+            "description": "Map-frame yaw [rad].",
+            "optional": true
+          },
+          "frame_id": {
+            "type": "string",
+            "description": "Frame of the pose.",
+            "optional": true,
+            "default": "map"
+          }
+        },
+        "outputs": {
+          "success": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "description": "succeeded, aborted, canceled or rejected."
+          }
+        },
+        "interruptible": true,
+        "blocks_base": true,
+        "requires": [
+          "base"
+        ],
+        "implementation": {
+          "kind": "external_ros_node",
+          "package": "dua_nav2_bringup",
+          "launch": "ros2 launch dua_nav2_bringup dottorcane.launch.py (dua_nav2 container; use_sim_time:=true in simulation)",
+          "action": "/dottorcane/dua_nav2/navigate_to_pose",
+          "msg_type": "nav2_msgs/action/NavigateToPose"
+        }
+      }
+    ]
+  }
+}

@@ -23,7 +23,6 @@ import math
 
 import numpy as np
 import rclpy
-from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
@@ -81,12 +80,18 @@ class LidarObstacleScan(Node):
             self.get_logger().warn(text)
 
     def lookup(self, target, source, stamp):
-        try:
-            return transform_matrix(self.tf_buffer.lookup_transform(
-                target, source, stamp, timeout=Duration(seconds=0.1)))
-        except TransformException as e:
-            self.warn_once(f'tf-{target}-{source}', f'waiting for TF {source} -> {target}: {e}')
-            return None
+        # No waiting: the TF listener runs on this node's single-threaded executor, so
+        # a blocking lookup would stall the /tf callbacks it waits for (measured in
+        # simulation: one scan every few seconds instead of 10 Hz). A transform that is
+        # not there yet at the cloud stamp falls back to the latest one, at most one
+        # EKF period older (millimetres at the agent's speeds).
+        for when in (stamp, Time()):
+            try:
+                return transform_matrix(self.tf_buffer.lookup_transform(target, source, when))
+            except TransformException as e:
+                error = e
+        self.warn_once(f'tf-{target}-{source}', f'waiting for TF {source} -> {target}: {error}')
+        return None
 
     def on_cloud(self, msg: PointCloud2):
         stamp = Time.from_msg(msg.header.stamp)
@@ -96,6 +101,8 @@ class LidarObstacleScan(Node):
             return
         xyz = point_cloud2.read_points_numpy(msg, field_names=('x', 'y', 'z'), skip_nans=True)
         xyz = np.asarray(xyz, dtype=np.float64).reshape(-1, 3)
+        # Rays without a return are +inf in Gazebo (gpu_lidar); the Livox driver drops them.
+        xyz = xyz[np.isfinite(xyz).all(axis=1)]
         body = xyz @ body_from_lidar[:3, :3].T + body_from_lidar[:3, 3]
         on_robot = np.all((body >= self.body_box_min) & (body <= self.body_box_max), axis=1)
         above = body[:, 2] + self.base_height

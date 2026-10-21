@@ -14,6 +14,11 @@ Nav2) use it, so "5 cm above the floor" stays right while the body pitches.
 
 On the real robot this role belongs to the state estimator (leg odometry +
 IMU); in simulation the ground truth stands in for it.
+
+With origin_x/y/z/yaw set to the spawn pose on the floor and odom_frame:=map, it
+stands in for the EKF of the DottorCane stack instead: map is the start pose of
+the robot (as for LIO-SAM without a prior map) and map -> base_link is published
+directly, like /dottorcane/slam/ekf_global/odometry on the real robot.
 """
 
 import math
@@ -34,19 +39,38 @@ class GroundTruthOdom(Node):
 
     def __init__(self):
         super().__init__('ground_truth_odom')
-        self.odom_frame = self.declare_parameter('odom_frame', 'map').value
+        self.odom_frame = self.declare_parameter('odom_frame', 'dottorcane/odom').value
         self.base_frame = self.declare_parameter('base_frame', 'dottorcane/base_link').value
         self.ground_frame = self.declare_parameter('ground_frame', 'dottorcane/base_ground').value
         # Weight of the newest finite-difference velocity (1.0 = no filtering).
         self.alpha = self.declare_parameter('velocity_filter_alpha', 0.5).value
         self.publish_tf = self.declare_parameter('publish_tf', True).value
+        self.publish_ground = self.declare_parameter('publish_ground', True).value
+        # Pose of odom_frame in the Gazebo world frame (default: the world frame itself).
+        self.origin = tuple(float(self.declare_parameter(f'origin_{k}', 0.0).value)
+                            for k in ('x', 'y', 'z', 'yaw'))
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
         self.tf_pub = TransformBroadcaster(self)
         self.create_subscription(PoseStamped, 'pose', self.on_pose, qos_profile_sensor_data)
         self.last = None
         self.twist = (0.0, 0.0, 0.0)
 
+    def to_odom_frame(self, msg: PoseStamped):
+        """World pose of the robot expressed in odom_frame (a yaw-only offset of the world)."""
+        ox, oy, oz, oyaw = self.origin
+        if ox == oy == oz == oyaw == 0.0:
+            return
+        p, q = msg.pose.position, msg.pose.orientation
+        c, s = math.cos(oyaw), math.sin(oyaw)
+        dx, dy = p.x - ox, p.y - oy
+        p.x, p.y, p.z = c * dx + s * dy, -s * dx + c * dy, p.z - oz
+        # q_out = q_z(-oyaw) * q
+        hz, hw = math.sin(-oyaw / 2.0), math.cos(-oyaw / 2.0)
+        q.w, q.x, q.y, q.z = (hw * q.w - hz * q.z, hw * q.x - hz * q.y,
+                              hw * q.y + hz * q.x, hw * q.z + hz * q.w)
+
     def on_pose(self, msg: PoseStamped):
+        self.to_odom_frame(msg)
         p, q = msg.pose.position, msg.pose.orientation
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         yaw = yaw_of(q)
@@ -87,7 +111,7 @@ class GroundTruthOdom(Node):
             ground.child_frame_id = self.ground_frame
             ground.transform.translation.x, ground.transform.translation.y = p.x, p.y
             ground.transform.rotation.z, ground.transform.rotation.w = math.sin(yaw / 2.0), math.cos(yaw / 2.0)
-            self.tf_pub.sendTransform([tf, ground])
+            self.tf_pub.sendTransform([tf, ground] if self.publish_ground else [tf])
 
 
 def main():

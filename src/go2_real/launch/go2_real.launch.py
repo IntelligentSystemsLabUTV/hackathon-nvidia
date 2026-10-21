@@ -63,6 +63,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'base_height', default_value='0.34',
             description='Standing base height above the floor [m] (camera height - 0.04)'),
+        DeclareLaunchArgument(
+            'use_sim_time', default_value='false',
+            description='Simulation clock (go2_sim_worlds profile:=real)'),
         Node(
             package='go2_real',
             executable='lidar_camera_depth.py',
@@ -71,12 +74,15 @@ def generate_launch_description():
             output='screen',
             emulate_tty=True,
             parameters=[{
+                'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
                 'body_frame': 'dottorcane/base_link',
                 'camera_frame': LaunchConfiguration('camera_frame'),
                 'camera_convention': LaunchConfiguration('camera_convention'),
                 'hfov_deg': ParameterValue(LaunchConfiguration('hfov_deg'), value_type=float),
                 'image_width': ParameterValue(LaunchConfiguration('image_width'), value_type=int),
                 'image_height': ParameterValue(LaunchConfiguration('image_height'), value_type=int),
+                'odom_frame': 'map',
+                'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),
             }],
             remappings=[
                 ('camera_info', LaunchConfiguration('camera_info')),
@@ -93,6 +99,7 @@ def generate_launch_description():
             emulate_tty=True,
             condition=IfCondition(LaunchConfiguration('obstacle_scan')),
             parameters=[{
+                'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
                 'body_frame': 'dottorcane/base_link',
                 'odom_frame': 'map',
                 'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),

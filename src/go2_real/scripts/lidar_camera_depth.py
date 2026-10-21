@@ -13,9 +13,19 @@ agent maps a bounding box onto the depth image: pixel (u, v) of the camera lands
 image has square pixels (fx = fy), as ros2_depth_corridor assumes: the rectified
 Go2 camera has fx != fy, so the image is not 16:9.
 
-The agent observes while the robot stands still, so points are not deskewed: the
-static lidar -> camera transform is enough. Points on the robot's own body (front
-legs, head) are dropped with a box in the body frame.
+The floor is removed before the projection: a point less than floor_height above
+the floor (heights in odom_frame, gravity-aligned by the EKF, from the standing
+base height) is not an obstacle. ros2_depth_corridor rejects the floor on its own
+from an assumed camera height for a level camera; a few centimetres of error in
+either turned the whole floor near the robot into an obstacle at ~0.35 m.
+
+Points are kept for `window` seconds in odom_frame and reprojected from the camera
+pose of the latest cloud. In sensor coordinates the points of the last 0.5 s, taken
+while the body turned and rocked, read the floor as an obstacle for about half a
+second after every motion (measured in simulation: corridor 0.37 m instead of 4 m).
+Without the odom_frame transform the node falls back to the sensor frame, with the
+floor estimated for a level body. Points on the robot's own body (front legs, head)
+are dropped with a box in the body frame.
 
 The camera must be in the TF tree (URDF or a static transform). Without a
 calibrated camera_info, hfov_deg + image_width/height describe an ideal pinhole.
@@ -73,6 +83,12 @@ class LidarCameraDepth(Node):
         # Box around the robot in the body frame: points inside are the robot itself.
         self.body_box_min = np.array(p('body_box_min', [-0.45, -0.22, -0.45]).value)
         self.body_box_max = np.array(p('body_box_max', [0.45, 0.22, 0.25]).value)
+        # Gravity-aligned frame of the localization (EKF), for motion compensation and floor removal.
+        self.odom_frame = p('odom_frame', 'map').value
+        # Standing base height above the floor (0.34 m on the real Go2, 0.22 m with CHAMP).
+        self.base_height = p('base_height', 0.34).value
+        # Points lower than this above the floor are floor (0: keep them).
+        self.floor_height = p('floor_height', 0.06).value
         # Camera without a calibration (no camera_info): ideal pinhole with this
         # horizontal field of view, centred, square pixels, frame camera_frame.
         hfov = p('hfov_deg', 0.0).value
@@ -85,7 +101,7 @@ class LidarCameraDepth(Node):
         self.out_info = None
         self.lidar_to_optical = {}  # lidar frame -> 4x4, transform is static
         self.lidar_to_body = {}
-        self.clouds = []  # (stamp seconds, Nx3 points in the optical camera frame)
+        self.clouds = []  # (stamp seconds, Nx3 points in odom_frame, or in the lidar frame without it)
         self.warned = set()
 
         self.pub = self.create_publisher(Image, 'depth', 5)
@@ -177,19 +193,51 @@ class LidarCameraDepth(Node):
             return
         xyz = point_cloud2.read_points_numpy(msg, field_names=('x', 'y', 'z'), skip_nans=True)
         xyz = np.asarray(xyz, dtype=np.float64).reshape(-1, 3)
+        # Rays without a return are +inf in Gazebo (gpu_lidar); the Livox driver drops them.
+        xyz = xyz[np.isfinite(xyz).all(axis=1)]
+        odom_from_body = self.odom_pose(msg.header.stamp)
         if xyz.size:
             body = xyz @ to_body[:3, :3].T + to_body[:3, 3]
             on_robot = np.all((body >= self.body_box_min) & (body <= self.body_box_max), axis=1)
-            xyz = xyz[~on_robot]
-            pts = xyz @ to_optical[:3, :3].T + to_optical[:3, 3]
-            pts = pts[(pts[:, 2] >= self.min_depth) & (pts[:, 2] <= self.max_depth)]
+            body = body[~on_robot]
+            if odom_from_body is not None:
+                pts = body @ odom_from_body[:3, :3].T + odom_from_body[:3, 3]
+                # Height above the floor below the robot: odom_frame is gravity-aligned.
+                above = pts[:, 2] - odom_from_body[2, 3] + self.base_height
+            else:
+                pts = xyz[~on_robot]
+                above = body[:, 2] + self.base_height
+            if self.floor_height > 0:
+                pts = pts[above >= self.floor_height]
         else:
             pts = xyz
 
         stamp = Time.from_msg(msg.header.stamp).nanoseconds * 1e-9
-        self.clouds.append((stamp, pts))
-        self.clouds = [(s, c) for s, c in self.clouds if stamp - s <= self.window]
-        self.publish(msg.header.stamp, np.concatenate([c for _, c in self.clouds]))
+        moving = odom_from_body is not None
+        if self.clouds and self.clouds[-1][2] != moving:
+            self.clouds = []  # frame of the stored points changed
+        self.clouds.append((stamp, pts, moving))
+        self.clouds = [c for c in self.clouds if stamp - c[0] <= self.window]
+        stored = np.concatenate([c[1] for c in self.clouds])
+        if moving:
+            # odom_frame -> lidar at the latest pose, then -> camera.
+            lidar_from_odom = np.linalg.inv(odom_from_body @ to_body)
+            stored = stored @ lidar_from_odom[:3, :3].T + lidar_from_odom[:3, 3]
+        cam = stored @ to_optical[:3, :3].T + to_optical[:3, 3]
+        cam = cam[(cam[:, 2] >= self.min_depth) & (cam[:, 2] <= self.max_depth)]
+        self.publish(msg.header.stamp, cam)
+
+    def odom_pose(self, stamp_msg):
+        """odom_frame <- body at the cloud stamp, else the latest one (no waiting: the TF
+        listener shares this single-threaded executor); None without the transform."""
+        for when in (Time.from_msg(stamp_msg), Time()):
+            try:
+                return transform_matrix(self.tf_buffer.lookup_transform(self.odom_frame, self.body_frame, when))
+            except TransformException as e:
+                error = e
+        self.warn_once('tf-odom', f'no TF {self.body_frame} -> {self.odom_frame} ({error}): '
+                                  'no motion compensation, floor for a level body')
+        return None
 
     def publish(self, stamp, pts):
         depth = np.full(self.height * self.width, np.inf, dtype=np.float32)

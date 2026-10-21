@@ -2,6 +2,43 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 21 ottobre 2026: navigazione con Nav2 sul Go2 reale e simulazione uguale al robot
+
+Durante le prove sul Go2 l'agente non usava mai Nav2: si muoveva solo con `cmd_vel`. Le cause, i fix e il nuovo modo di navigare, tutti provati nella simulazione con il Nav2 DUA come sul robot.
+
+### Perché Nav2 non partiva
+
+- L'agente manda goal a Nav2 in due soli casi: posti noti (file di stanze, assente sul reale) ed esplorazione a frontiere dopo un giro di ricerca senza bersaglio. L'avvicinamento a un bersaglio visto era sempre in `cmd_vel`.
+- La costmap globale del Nav2 DUA aveva `track_unknown_space: false`: nessuna cella sconosciuta, quindi `agenticros_explore` non trovava frontiere (`no_frontiers`, 0 goal), e dopo due tentativi l'agente passava al `cmd_vel`. I log di `bt_navigator` sul PC non mostravano alcun goal ricevuto. Fix in `dua_nav2` (`config/dottorcane.yaml`, costmap globale).
+- `ros2_estop` non annullava i goal di Nav2 sul reale (`skillPaths: []`): ora c'è la skill `go2-nav2-dua`.
+
+### In breve
+
+- **Simulazione uguale al robot** (`go2_sim.launch.py profile:=real`, il default): topic, frame, sensori e middleware del DottorCane. Camera frontale `/dottorcane/go2_control/frontvideo/*` (1280×720, HFOV 94,7°), Mid-360 `/dottorcane/sensors/livox_lidar_driver/point_cloud(/deskewed)` nella posa reale (pitch 30°), IMU `/dottorcane/go2_control/imu`, niente camera di profondità; `/dottorcane/slam/ekf_global/odometry` e TF `map → dottorcane/base_link` con `map` alla posa di partenza (la posa di Gazebo fa da EKF + LIO-SAM, l'agente non la legge mai); `go2_real.launch.py` per profondità e scan dal lidar; rmw_zenoh. Nav2 è quello DUA nel suo container, `explore` viene da `go2_real_nav.launch.py nav2:=dua`: gli stessi passi del robot. `profile:=zed` è la simulazione precedente.
+- **Pavimento come ostacolo** (`lidar_camera_depth.py`): era la causa del "percorso bloccato" anche sul robot. Il nodo accumulava 0,5 s di punti nel frame del lidar e il corridoio riconosceva il pavimento da quota e assetto supposti della camera. Dopo ogni movimento il pavimento risultava un ostacolo per circa mezzo secondo: corridoio a 0,37 m invece di 4 m. Sul robot bastano pochi centimetri di errore su `NEBIUS_CAMERA_HEIGHT_M`, o un paio di gradi di pitch della camera, per ottenere lo stesso effetto. Ora il pavimento si toglie prima della proiezione, in base all'altezza da terra nel frame `map` (allineato alla gravità dall'EKF, `base_height`, `floor_height` 6 cm), e i punti sono compensati per il moto.
+- **Scan ostacoli a 10 Hz** (`lidar_obstacle_scan.py`): il lookup TF bloccante in un executor single-thread dava uno scan ogni ~6 s.
+- **Avvicinamento con Nav2** (`nav2ApproachGoal`, `agent.ts`): un bersaglio confermato a più di 1,5 m oltre la distanza di arrivo si raggiunge con un goal Nav2 sulla congiungente, 0,5 m prima della distanza di arrivo; l'ultimo metro resta visivo. Nav2 aggira i mobili.
+- **Esplorazione con Nav2**: le frontiere ora funzionano (`min_goal_distance_m` 1 m in `agenticros_explore`, contro le celle sconosciute attaccate al corpo); senza frontiere, la camminata verso la direzione scelta è un goal Nav2 invece di un avanzamento a tempo.
+- **Memoria della sessione**: posizione del bersaglio nel frame `map` (un avvistamento vicino nello stesso punto conta come "avvicinato", non come primo avvistamento: la guardia `closeFirstSighting` faceva girare il robot a 1 m dal frigorifero); "ricorda questo posto come cucina"; ogni bersaglio raggiunto diventa un posto ("torna dal frigorifero"). File `logs/places_session.json`.
+- **Tool MCP** `ros2_robot_pose` (posa da `AGENTICROS_POSE_TOPIC`) e `ros2_navigate_to_pose`.
+
+### Prove in simulazione (casa, dallo spawn)
+
+| Richiesta | Prima | Dopo |
+| --- | --- | --- |
+| "vai vicino al frigorifero" (visibile a 8 m dietro divano e tavolini) | 11 passi, "percorso bloccato" | 3–5 passi: un goal Nav2 da 7 m (15 s), arrivo a 1,0–1,3 m |
+| "vai vicino al letto" (in un'altra stanza) | distanza libera 0,34–0,45 m a ogni passo, 16 passi senza arrivo | una frontiera con Nav2 (5,4 m), arrivo a 1,08 m in 16 passi |
+| "ricorda questo posto come cucina", poi "vai in cucina" | – | un goal Nav2 (14,5 s), arrivo a 3,5 cm dalla posa salvata |
+| "torna dal frigorifero" (posto salvato in automatico) | – | un goal Nav2 (15 s), frigorifero al centro dell'immagine |
+
+Con `nvidia/Nemotron-3_5-Lightning` (il default) l'ultima prova del frigorifero è arrivata in 5 passi. Il 21 ottobre per alcune ore Lightning è andato in timeout anche su richieste di 8 token: le altre prove usano `NEBIUS_POLICY=auto` (Nemotron solo per interpretare la richiesta) con `NEBIUS_REASONING_MODEL=nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, che una volta ha letto "vai vicino al frigorifero" come richiesta di descrizione.
+
+### Resta aperto
+
+- Sul robot: verificare in RViz che la costmap globale si riempia (il filtro di altezza 0,1–1,0 m è nel frame `map`: conta dove sta lo z=0 di LIO-SAM), misurare `NEBIUS_CAMERA_HEIGHT_M` e controllare con `/dottorcane/agent/depth` che il pavimento non compaia.
+- Le velocità di Nav2 (MPPI fino a 1 m/s e 1,5 rad/s) non passano dai limiti di AgenticROS.
+- Il lidar simulato non riproduce lo schema non ripetitivo del Mid-360: la costmap della sim è più densa di quella reale.
+
 ## 13 ottobre 2026 (pomeriggio): direzione dall'IMU, ostacoli bassi, sblocco delle rotazioni
 
 La prima serie A/B senza mappa aveva mostrato che il problema era il corpo del robot, non la scelta della direzione. Queste modifiche lo affrontano; misure e dettagli in [ESPLORAZIONE_GRAFO.md](ESPLORAZIONE_GRAFO.md).

@@ -82,7 +82,7 @@ Il punto debole è proprio lo spawn: con le 4 viste del giro del robot e 6 ripet
 
 ### Grafo dei luoghi (`policy.ts`)
 
-- **Posizione stimata** (`xM`, `yM`): somma degli avanzamenti eseguiti lungo la direzione stimata. Niente posa reale e niente odometria: in simulazione `/map` è la posa di Gazebo e non va passata all'agente.
+- **Posizione stimata** (`xM`, `yM`): somma degli avanzamenti eseguiti lungo la direzione stimata. Niente posa reale e niente odometria: in simulazione `/dottorcane/odom` è la posa di Gazebo e non va passata all'agente.
 - **Luoghi** (`places`): un nodo per ogni punto in cui il robot finisce un giro senza bersaglio; un giro entro 1,5 m da un luogo noto è lo stesso luogo (`enterPlace`).
 - **Archi esplorati** (`exploredDeg`): le direzioni già prese da quel luogo e la direzione opposta a quella da cui il robot è arrivato.
 - **Direzione suggerita** (`suggestedHeadingDeg`): se c'è e non è bloccata, `chooseExploreHeading` la usa prima delle porte e dello spazio libero. Dopo un viaggio Nav2 (`nav:=slam`) posizione e grafo ripartono da zero.

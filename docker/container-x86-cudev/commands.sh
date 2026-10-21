@@ -65,6 +65,13 @@ dottorcane_zenoh() {
   export ZENOH_CONFIG_OVERRIDE="mode=\"client\";connect/endpoints=[\"tcp/$1:7447\"];scouting/multicast/enabled=false"
 }
 
+# ROS 2 CLI on the real-like simulation (go2_sim.launch.py profile:=real) of this
+# machine: rmw_zenoh_cpp through the local router (start it once with `zenohd`).
+sim_zenoh() {
+  export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+  unset ZENOH_CONFIG_OVERRIDE
+}
+
 # go2_control accepts cmd_vel only after the arm action; run dottorcane_zenoh first.
 dottorcane_arm() {
   ros2 action send_goal -f /dottorcane/go2_control/arm dua_hardware_interfaces/action/Arm "{}"

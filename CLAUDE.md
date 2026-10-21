@@ -23,15 +23,15 @@ docker compose down                                             # stop, dalla st
 
 | Percorso | Cosa | Git |
 |---|---|---|
-| `src/go2_sim_worlds/` | Launch unico `go2_sim.launch.py world:=<nome> nav:=none\|map\|slam`, registro `config/environments.yaml`, `worlds/house.world`, bridge comune, Nav2 (`launch/go2_nav.launch.py`, `config/nav2_go2*.yaml`, `config/slam_toolbox_go2.yaml`), stanze `config/places/<world>.json`, mappa `maps/` | tracciato |
-| `src/ldc25_sim`, `champ*`, `dottorcane_description`, `go2_description`, `zed_description`, `velodyne_description`, `ros_gz_republish` | Stack del robot importato (CHAMP, URDF/SDF, sensori, bridge) | **ignorato** |
+| `src/go2_sim_worlds/` | Launch unico `go2_sim.launch.py world:=<nome> profile:=real\|zed nav:=none\|map\|slam` (`profile:=real`, default: sensori, topic, frame, zenoh e Nav2 DUA come il robot reale; `zed`: la sim precedente), registro `config/environments.yaml`, `worlds/house.world`, bridge comune, Nav2 (`launch/go2_nav.launch.py`, `config/nav2_go2*.yaml`, `config/slam_toolbox_go2.yaml`), stanze `config/places/<world>.json`, mappa `maps/` | tracciato |
+| `src/ldc25_sim`, `champ*`, `dottorcane_description`, `go2_description`, `zed_description`, `velodyne_description`, `ros_gz_republish` | Stack del robot importato (CHAMP, URDF/SDF, sensori, bridge), copiato da `dotX-gazebo` (vedi `docs/GAZEBO_SETUP.md`, "Package della simulazione") | **ignorato** |
 | `src/agenticros` | Symlink a `tools/agenticros/ros2_ws/src` | symlink |
 | `tools/agenticros/` | Submodule AgenticROS (fork `ErLex20/agenticros`), monorepo pnpm; adapter Nebius in `packages/agenticros-nebius/src` | submodule |
 | `src/go2_real/` | Robot reale: `lidar_camera_depth.py` (Mid-360 → profondità allineata alla camera frontale), `lidar_obstacle_scan.py` (scan ostacoli per Nav2), `go2_real.launch.py`, `go2_real_nav.launch.py robot:=<host>` (Nav2 sul PC via zenoh, senza mappa), `rviz.launch.py robot:=<host>` (RViz via zenoh) | tracciato |
 | `docker/container-jetson6/` | Container DUA per la Jetson Orin AGX del Go2 (JetPack 6, Jazzy da sorgente, niente Nav2); `GO2_TARGET=real` | tracciato |
 | `config/agenticros.real.json` | Come `agenticros.json` per il robot reale: camera frontale del Go2 | tracciato |
 | `config/agenticros.json` | Topic camera e cmd_vel, limiti di sicurezza (0,25 m/s, 0,5 rad/s), `skillPaths` | tracciato |
-| `config/agenticros-skills/go2-nav2/` | Skill senza codice: capability `navigate_to` → azione Nav2 `navigate_to_pose` | tracciato |
+| `config/agenticros-skills/go2-nav2/`, `go2-nav2-dua/` | Skill senza codice: capability `navigate_to` → `navigate_to_pose` del Nav2 di questo package (sim-zed) o del Nav2 DUA `/dottorcane/dua_nav2` (robot e `profile:=real`, in `agenticros.real.json`) | tracciato |
 | `config/gazebo/{ldc25,house}/` | Modelli Gazebo pesanti; `config/gazebo/models` è un symlink a `ldc25/models` | ignorato |
 | `patches/sim-slip-fix.patch` | Fix allo stack sim ignorato (rampa di velocità, gait, bullet) | tracciato |
 | `scripts/run_nebius_agent.sh` | Avvia l'agente Nebius e imposta i default della sim; con `GO2_TARGET=real` quelli del robot reale (rmw_zenoh, profondità dal lidar) | tracciato |
@@ -39,6 +39,26 @@ docker compose down                                             # stop, dalla st
 | `scripts/vision_eval/` | Valutazione di modelli vision e YOLO su frame della sim con verità a terra (README e `RISULTATI.md`); frame, `.json`, `.jsonl` e `.log` solo in locale | script tracciati |
 
 I package sim ignorati non sono versionati: ogni modifica a quei file va esportata come patch in `patches/` e documentata in `docs/GAZEBO_SETUP.md`.
+
+## Simulazione uguale al robot (`profile:=real`, default)
+
+Stessi passi del robot reale, provati il 21 ottobre (`docs/GAZEBO_SETUP.md`, `docs/CHANGELOG.md`). Usa `dua bg` / `dua exec` dalla root di ciascun repo:
+
+```bash
+# hackathon-nvidia
+dua bg start zenoh -- zenohd -c /etc/zenoh/rmw/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5
+dua bg start sim -- env RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 launch go2_sim_worlds go2_sim.launch.py world:=house gui:=false
+# dua_nav2 (repo ../dua_nav2, suo container)
+dua bg start nav2 -- env RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 launch dua_nav2_bringup dottorcane.launch.py use_sim_time:=true
+# hackathon-nvidia
+dua bg start explore -- env RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 launch go2_real go2_real_nav.launch.py nav2:=dua use_sim_time:=true
+dua bg start agent -- ./scripts/run_nebius_agent.sh "vai vicino al frigorifero"   # GO2_TARGET=sim (default)
+```
+
+- Topic come il reale: camera `/dottorcane/go2_control/frontvideo/image_rect_color` (1280×720, HFOV 94,7°), lidar `/dottorcane/sensors/livox_lidar_driver/point_cloud(/deskewed)`, profondità `/dottorcane/agent/depth`, IMU `/dottorcane/go2_control/imu`, odometria `/dottorcane/slam/ekf_global/odometry`, TF `map → dottorcane/base_link` (`map` = posa di partenza).
+- La CLI `ros2` sulla sim vuole `RMW_IMPLEMENTATION=rmw_zenoh_cpp` (`sim_zenoh` nel container). Anche `ros2 launch go2_sim_worlds ...` deve partire con zenoh già impostato, altrimenti le composable non vengono caricate (il launch lo controlla).
+- Dopo un riavvio della sim riavvia Nav2 ed `explore`. `logs/places_session.json` (posti della sessione dell'agente) viene cancellato dal launch.
+- Per prove senza spendere token: `NEBIUS_POLICY=auto` (Nemotron solo per interpretare la richiesta), `NEBIUS_MAX_STEPS` basso; i tool MCP si provano anche senza Nebius con un client MCP (`@modelcontextprotocol/sdk` di `packages/agenticros-nebius`).
 
 ## Comandi frequenti (nel container, da `~/workspace`)
 
@@ -58,7 +78,7 @@ cd tools/agenticros && pnpm build                                  # dopo modifi
 agenticros_setup                                                   # setup completo: colcon + pnpm
 ```
 
-Topic chiave: camera `/dottorcane/slam/zed_x_driver/left/image_rect_color` (1920×1080), profondità `/dottorcane/slam/zed_x_driver/depth_distances`, cmd_vel `/dottorcane/go2_control/cmd_vel`, posa reale `/gz/dottorcane/pose` (base in piedi a z ≈ 0,22 m), joint `/dottorcane/joint_states`.
+Topic chiave di `profile:=zed`: camera `/dottorcane/slam/zed_x_driver/left/image_rect_color` (1920×1080), profondità `/dottorcane/slam/zed_x_driver/depth_distances`, cmd_vel `/dottorcane/go2_control/cmd_vel`, posa reale `/gz/dottorcane/pose` (base in piedi a z ≈ 0,22 m), joint `/dottorcane/joint_states`.
 
 ## AgenticROS
 
@@ -88,6 +108,9 @@ Go2 EDU con Jetson Orin AGX e stack DottorCane (repo `IntelligentSystemsLabUTV/d
 - **Sim degradata dopo un incastro.** Dopo che il robot è rimasto incastrato (contro il porta-manubri della palestra, a x ≈ 2,3, y 2,0–3,4, alto 0,4 m e assente dalla mappa) la sim è rimasta degradata fino al riavvio: −90° comandati diventavano −57…−68° e una camminata dritta curvava di 90°. Prima di una serie di prove rilancia la sim e controlla le rotazioni con `scripts/vision_eval/imu_check.sh` (−90° → circa −88°).
 - **Nav2 e librerie.** L'underlay DUA ha BehaviorTree.CPP 4.9 prima di quello di Jazzy nel `LD_LIBRARY_PATH`: `go2_nav.launch.py` mette `/opt/ros/jazzy/lib` in testa per i processi Nav2. `ros-jazzy-diagnostic-updater` dell'immagine base è più vecchio di Nav2 (`undefined symbol diagnostic_updater::Updater`): il Dockerfile lo aggiorna; in un container vecchio `sudo apt-get install --only-upgrade ros-jazzy-diagnostic-updater`.
 - **Uccidere processi.** `pkill -f "<testo>"` uccide anche la shell che lo esegue se il testo compare nella sua riga di comando: usa un pattern come `"[g]z sim"`, e non mettere nella stessa riga di comando il nome in chiaro (es. un `grep "gz sim"` dopo il `pkill`): la shell verrebbe uccisa lo stesso.
+- **Profondità dal lidar e pavimento.** `lidar_camera_depth.py` toglie il pavimento nel frame `map` (altezza da terra da `base_height`, 0,34 m reale, 0,22 m sim) e compensa il moto. Prima il corridoio vedeva il pavimento come ostacolo a ~0,35 m per mezzo secondo dopo ogni movimento, e sul reale con qualche cm di errore su `NEBIUS_CAMERA_HEIGHT_M`. Se la distanza libera resta sotto 0,5 m con spazio davanti, controlla questo per primo.
+- **Lookup TF nei nodi rclpy.** Nei nodi single-thread non usare `lookup_transform(..., timeout=...)` dentro un callback: blocca i callback di `/tf` che sta aspettando (lo scan ostacoli usciva a ~0,2 Hz). Lookup senza attesa al timestamp, poi l'ultima TF.
+- **Nemotron-3_5-Lightning** il 21 ottobre è andato in timeout per ore anche su 8 token, mentre Kimi rispondeva in <1 s. Prima di accusare il codice, prova una richiesta minima (`GET /models` è gratuito). Ripiego: `NEBIUS_REASONING_MODEL=nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, meno affidabile nell'interpretare le richieste.
 - **Test della percezione**: la posa reale (`/gz/dottorcane/pose`) e le pose degli oggetti in `house.world` servono solo a verificare l'arrivo dall'esterno; non vanno mai passate all'agente.
 
 ## Git

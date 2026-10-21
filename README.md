@@ -22,7 +22,13 @@ cd tools/agenticros && pnpm build && cd ~/workspace   # AgenticROS (l'agente gir
 
 `.env` nella root deve contenere `NEBIUS_API_KEY` (vedi `.env.example`). Per la percezione con i box conviene `NEBIUS_VISION_MODEL=moonshotai/Kimi-K2.6`, oppure nessuna riga: è il default.
 
-### 1. Lanciare la simulazione (terminale 1)
+### 0. Simulazione uguale al robot (default)
+
+Dal 21 ottobre `go2_sim.launch.py` usa di default `profile:=real`: stessi topic, frame, sensori (camera frontale del Go2, Mid-360, niente camera di profondità), middleware (zenoh) e Nav2 (quello DUA, repo `dua_nav2`) del DottorCane reale, con gli stessi passi della prova sul robot. Comandi e verifiche in [`docs/GAZEBO_SETUP.md`](docs/GAZEBO_SETUP.md#simulazione-uguale-al-robot-profilereal), risultati in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). L'agente (`GO2_TARGET=sim`, default) usa Nav2 per avvicinarsi, esplorare e tornare ai posti salvati ("ricorda questo posto come cucina", "torna dal frigorifero").
+
+Le sezioni 1–2 qui sotto descrivono la simulazione precedente, con camere ZED e il Nav2 di questo repo: aggiungi `profile:=zed` al launch e `GO2_TARGET=sim-zed` all'agente.
+
+### 1. Lanciare la simulazione precedente (terminale 1, `profile:=zed`)
 
 ```bash
 cd ~/workspace
@@ -30,11 +36,11 @@ pkill -9 -f "[g]z sim"; pkill -9 -f "[d]ua_component_container"   # orfani di se
 source install/setup.zsh
 export DISPLAY=:0                        # solo se vuoi la GUI di Gazebo
 
-ros2 launch go2_sim_worlds go2_sim.launch.py world:=house                  # casa, senza Nav2
-ros2 launch go2_sim_worlds go2_sim.launch.py world:=house gui:=false       # idem, headless
-ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=map         # Nav2 + AMCL, stanze note
-ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=slam        # Nav2 + SLAM, esplorazione a frontiere
-ros2 launch go2_sim_worlds go2_sim.launch.py world:=ldc25                  # campo esterno con idrante e semaforo
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house profile:=zed                  # casa, senza Nav2
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house profile:=zed gui:=false       # idem, headless
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house profile:=zed nav:=map         # Nav2 + AMCL, stanze note
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=house profile:=zed nav:=slam        # Nav2 + SLAM, esplorazione a frontiere
+ros2 launch go2_sim_worlds go2_sim.launch.py world:=ldc25 profile:=zed                  # campo esterno con idrante e semaforo
 ```
 
 La casa richiede i modelli scaricati una volta con `./scripts/fetch_house_world.sh`.

@@ -13,7 +13,7 @@ Come far girare l'agente AgenticROS + Nebius sul Go2 EDU vero, con la Jetson Ori
 | Profondità | ZED `depth_distances` | **nessuna camera di profondità**: Livox Mid-360 proiettato nella camera (`/dottorcane/agent/depth`, vedi sotto) |
 | IMU | ZED | `/dottorcane/go2_control/imu` |
 | Lidar | — | Mid-360 `/dottorcane/sensors/livox_lidar_driver/point_cloud`, frame `dottorcane/livox_mid360_link`, a x 0,273 m e z 0,141 m dalla base, inclinato di 30° in avanti |
-| Localizzazione | posa vera di Gazebo | EKF `/dottorcane/slam/ekf_global/odometry` e LIO-SAM `/dottorcane/slam/lio_sam/map_optimization/{pose,path,local_map}`; TF `map → map → dottorcane/base_link` |
+| Localizzazione | posa vera di Gazebo | EKF `/dottorcane/slam/ekf_global/odometry` e LIO-SAM `/dottorcane/slam/lio_sam/map_optimization/{pose,path,local_map}`; TF `map → dottorcane/base_link` (l'EKF ha `world_frame` e `odom_frame` = `map`) |
 | Nav2 | sì (`nav:=map\|slam`) | non sulla Jetson (su JetPack 6 i pacchetti `ros-jazzy-*` non esistono): gira sul PC, nel container cudev, collegato via zenoh (`go2_real_nav.launch.py`, vedi sotto) |
 
 Lo stack DottorCane si lancia nel suo container `dottorcane:jetson6`: `ros2 launch dottorcane_bringup dottorcane_slam.launch.py`. Serve la versione `slam`: `dottorcane.launch.py` non avvia il Mid-360.
@@ -43,6 +43,27 @@ Verificato nel container cudev, senza robot:
 - rclnodejs riceve su `rmw_zenoh_cpp` attraverso un router zenoh;
 - la configurazione client di `rviz.launch.py` raggiunge il router;
 - con TF e `camera_info` come quelli reali e una scena sintetica (muro a 2 m, scatola a 1 m, pavimento, zampe), le funzioni di profondità dell'agente leggono 0,67 m nel box della scatola, 1,67 m sul muro e un ostacolo nel corridoio a 0,67 m. I valori sono quelli attesi, in entrambe le convenzioni del frame camera e anche senza `camera_info` (`hfov_deg`).
+
+## Workflow completo (agente + Nav2 DUA)
+
+È lo stesso che gira in simulazione con `go2_sim.launch.py profile:=real` (vedi [GAZEBO_SETUP.md](GAZEBO_SETUP.md#simulazione-uguale-al-robot-profilereal)), dove è stato provato; i dettagli dei singoli passi sono nelle sezioni sotto.
+
+1. Jetson, container DottorCane: `ros2 launch dottorcane_bringup dottorcane_slam.launch.py`.
+2. Jetson, nostro container: `ros2 launch go2_real go2_real.launch.py` (profondità e scan dal lidar; `base_height:=` se l'altezza della base in piedi non è 0,34 m).
+3. PC, container `dua_nav2`, come client del router del robot: `RMW_IMPLEMENTATION=rmw_zenoh_cpp ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/<IP>:7447"];scouting/multicast/enabled=false' ros2 launch dua_nav2_bringup dottorcane.launch.py` (`use_sim_time` è `false` di default). La costmap globale ha `track_unknown_space: true`: senza celle sconosciute `explore` non trova frontiere e l'agente non usa mai Nav2.
+4. PC, nostro container cudev: `ros2 launch go2_real go2_real_nav.launch.py robot:=<IP> nav2:=dua`.
+5. Jetson: `dottorcane_arm`, poi `./scripts/run_nebius_agent.sh "…"` (con `GO2_TARGET=real`, già impostato nel container jetson6). All'avvio deve comparire `[Navigation] Nav2 live map (SLAM), frontier exploration`: se compare `not running`, l'agente è partito prima di Nav2 o di `explore`.
+
+Con Nav2 l'agente:
+
+- si avvicina con un goal Nav2 a un bersaglio confermato a più di 1,5 m oltre la distanza di arrivo, l'ultimo metro resta visivo;
+- esplora con le frontiere di `agenticros_explore` o, senza frontiere, con goal Nav2 lungo la direzione scelta;
+- ricorda i posti della sessione nel frame `map`: "ricorda questo posto come cucina", "vai in cucina", e ogni bersaglio raggiunto ("torna dal frigorifero"). Il file è `logs/places_session.json`: **cancellalo quando riavvii lo stack DottorCane**, perché il frame `map` di LIO-SAM riparte dalla posa del robot;
+- con `ros2_estop` (anche Ctrl-C) annulla i goal di Nav2 (skill `config/agenticros-skills/go2-nav2-dua`).
+
+Le velocità di Nav2 sono quelle di `dua_nav2/config/dottorcane.yaml` (MPPI fino a 1 m/s), non i limiti di AgenticROS: il telecomando resta il freno.
+
+**Pavimento come ostacolo** (corretto il 21 ottobre, vedi [CHANGELOG.md](CHANGELOG.md)): se la distanza libera resta intorno a 0,3–0,5 m con spazio libero davanti, guarda `/dottorcane/agent/depth` in RViz. Il nodo toglie il pavimento in base all'altezza da terra nel frame `map` (`base_height`, `floor_height`), quindi deve vedere la TF `map → dottorcane/base_link`; senza, lo dice nel log e stima il pavimento come per un corpo in bolla.
 
 ## Prova sul robot
 
@@ -108,12 +129,12 @@ ros2 launch go2_real go2_real_nav.launch.py robot:=<IP della Jetson>
 ros2 launch go2_real go2_real_nav.launch.py robot:=<IP> map_topic:=<OccupancyGrid dello SLAM>   # con la mappa
 ```
 
-- **Nav2 DUA.** Il Nav2 di dotX gira sul PC, nel namespace `/dottorcane/dua_nav2` (costmap globale con obstacle layer, locale con voxel layer, `navigate_to_pose`). In quel caso non va avviato il nostro, altrimenti i due Nav2 si contendono il cmd_vel: `ros2 launch go2_real go2_real_nav.launch.py nav2:=dua` avvia solo `agenticros_explore`, che legge `/dottorcane/dua_nav2/global_costmap/costmap` e manda i goal a `/dottorcane/dua_nav2/navigate_to_pose`. `map_frame:=` va impostato al `frame_id` di quella costmap (default `map`). Senza `/explore` l'agente vede Nav2 ma, senza file di stanze, non lo usa mai.
-- Parametri in `src/go2_real/config/nav2_go2_real.yaml`: quelli della sim, senza AMCL. La TF `map → map` viene da LIO-SAM, l'odometria dall'EKF (`/dottorcane/slam/ekf_global/odometry`). La costmap globale è rolling, 30 × 30 m, fatta solo dallo scan; con `map_topic:=` aggiunge la `OccupancyGrid` dello SLAM come static layer.
+- **Nav2 DUA.** Il Nav2 di dotX gira sul PC, nel namespace `/dottorcane/dua_nav2` (costmap globale con obstacle layer, locale con voxel layer, `navigate_to_pose`). In quel caso non va avviato il nostro, altrimenti i due Nav2 si contendono il cmd_vel: `ros2 launch go2_real go2_real_nav.launch.py nav2:=dua` avvia solo `agenticros_explore`, che legge `/dottorcane/dua_nav2/global_costmap/costmap` e manda i goal a `/dottorcane/dua_nav2/navigate_to_pose`. `map_frame:=` va impostato al `frame_id` di quella costmap (default `map`). Senza `/explore` l'agente usa comunque Nav2 per l'avvicinamento e per le camminate di esplorazione.
+- Parametri in `src/go2_real/config/nav2_go2_real.yaml`: quelli della sim, senza AMCL. La TF `map → dottorcane/base_link` e l'odometria vengono dall'EKF (`/dottorcane/slam/ekf_global/odometry`). La costmap globale è rolling, 30 × 30 m, fatta solo dallo scan; con `map_topic:=` aggiunge la `OccupancyGrid` dello SLAM come static layer.
 - Parte anche `agenticros_explore` (action `explore`), sulla costmap globale o su `map_topic`. L'agente sulla Jetson trova `navigate_to_pose` ed `explore` da solo all'avvio (`[Navigation] ...`); va riavviato dopo Nav2.
 - Il collision monitor scrive `/dottorcane/go2_control/cmd_vel` e ferma il robot se lo scan manca per più di 1 s. Prima serve `dottorcane_arm`.
 - Tempo reale (`use_sim_time: false`): gli orologi di Jetson e PC devono coincidere (chrony/NTP), altrimenti le TF vanno in errore di estrapolazione.
-- Verificato nel cudev con router zenoh locale, TF e scan finti: Nav2 attivo, action presenti, costmap 600 × 600 celle. Lo scan sintetico (pavimento con ±2 cm di rumore, scatola a 1 m, muro a 1,5 m, zampe) dà 1,0 m, 1,5 m, niente pavimento né zampe. Sul robot non ancora provato.
+- Verificato nel cudev con router zenoh locale, TF e scan finti: Nav2 attivo, action presenti, costmap 600 × 600 celle. Lo scan sintetico (pavimento con ±2 cm di rumore, scatola a 1 m, muro a 1,5 m, zampe) dà 1,0 m, 1,5 m, niente pavimento né zampe. In simulazione (profilo `real`) lo scan pubblicava ~0,2 Hz per un lookup TF bloccante: corretto, ora 10 Hz.
 
 ## Risposte dello stack DottorCane (20 ottobre)
 

@@ -84,7 +84,7 @@ def launch_setup(context):
     nav2 = LaunchConfiguration('nav2').perform(context)
     if nav2 not in ('own', 'dua'):
         raise RuntimeError(f"[go2_real_nav] unknown nav2 '{nav2}': use own or dua")
-    common = {'use_sim_time': False}
+    common = {'use_sim_time': LaunchConfiguration('use_sim_time').perform(context).lower() == 'true'}
     if nav2 == 'dua':
         navigate_action = f'{DUA_NAV2}/navigate_to_pose'
         explore_map = map_topic or f'{DUA_NAV2}/global_costmap/costmap'
@@ -127,6 +127,8 @@ def launch_setup(context):
                 'base_frame_fallback': 'dottorcane/base_link',
                 'goal_timeout_s': 75.0,
                 'min_frontier_m': 0.5,
+                # The tilted Mid-360 leaves unknown cells next to the body: skip them.
+                'min_goal_distance_m': 1.0,
             }]))
     return actions
 
@@ -149,6 +151,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'map_frame', default_value='map',
             description='Frame of the map explore reads (header.frame_id of the costmap)'),
+        DeclareLaunchArgument(
+            'use_sim_time', default_value='false',
+            description='Simulation clock (go2_sim_worlds profile:=real)'),
         DeclareLaunchArgument(
             'explore', default_value='true',
             description='Start agenticros_explore (the explore action)'),
