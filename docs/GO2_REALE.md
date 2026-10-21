@@ -108,6 +108,7 @@ ros2 launch go2_real go2_real_nav.launch.py robot:=<IP della Jetson>
 ros2 launch go2_real go2_real_nav.launch.py robot:=<IP> map_topic:=<OccupancyGrid dello SLAM>   # con la mappa
 ```
 
+- **Nav2 DUA.** Il Nav2 di dotX gira sul PC, nel namespace `/dottorcane/dua_nav2` (costmap globale con obstacle layer, locale con voxel layer, `navigate_to_pose`). In quel caso non va avviato il nostro, altrimenti i due Nav2 si contendono il cmd_vel: `ros2 launch go2_real go2_real_nav.launch.py nav2:=dua` avvia solo `agenticros_explore`, che legge `/dottorcane/dua_nav2/global_costmap/costmap` e manda i goal a `/dottorcane/dua_nav2/navigate_to_pose`. `map_frame:=` va impostato al `frame_id` di quella costmap (default `map`). Senza `/explore` l'agente vede Nav2 ma, senza file di stanze, non lo usa mai.
 - Parametri in `src/go2_real/config/nav2_go2_real.yaml`: quelli della sim, senza AMCL. La TF `map → dottorcane/odom` viene da LIO-SAM, l'odometria dall'EKF (`/dottorcane/slam/ekf_global/odometry`). La costmap globale è rolling, 30 × 30 m, fatta solo dallo scan; con `map_topic:=` aggiunge la `OccupancyGrid` dello SLAM come static layer.
 - Parte anche `agenticros_explore` (action `explore`), sulla costmap globale o su `map_topic`. L'agente sulla Jetson trova `navigate_to_pose` ed `explore` da solo all'avvio (`[Navigation] ...`); va riavviato dopo Nav2.
 - Il collision monitor scrive `/dottorcane/go2_control/cmd_vel` e ferma il robot se lo scan manca per più di 1 s. Prima serve `dottorcane_arm`.

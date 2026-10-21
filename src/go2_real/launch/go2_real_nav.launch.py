@@ -2,6 +2,7 @@
 
     ros2 launch go2_real go2_real_nav.launch.py robot:=<host or IP>
     ros2 launch go2_real go2_real_nav.launch.py robot:=<IP> map_topic:=<OccupancyGrid>
+    ros2 launch go2_real go2_real_nav.launch.py nav2:=dua      # explore only, on the DUA Nav2
 
 The Jetson has no Nav2 (JetPack 6): this runs in the x86 container and talks to
 the robot's zenoh router as a client, like rviz.launch.py. On the Jetson, before:
@@ -14,6 +15,11 @@ Started here:
     collision monitor, which writes /dottorcane/go2_control/cmd_vel (arm first);
   - agenticros_explore: the `explore` action (frontier goals sent to Nav2) on the
     global costmap, or on map_topic when given.
+
+nav2:=dua starts only agenticros_explore, on the DUA Nav2 already running here
+(namespace /dottorcane/dua_nav2: its global costmap and navigate_to_pose); a
+second Nav2 would fight it over the cmd_vel. map_frame must be the frame of that
+costmap.
 
 The AgenticROS agent on the Jetson finds navigate_to_pose and explore on the ROS
 graph by itself. Nodes use wall-clock time: the clocks of the Jetson and of this
@@ -31,6 +37,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 PACKAGE = 'go2_real'
+DUA_NAV2 = '/dottorcane/dua_nav2'
 
 # The DUA underlay ships BehaviorTree.CPP 4.9 before the 4.10 of /opt/ros/jazzy
 # that Nav2 is built against (see go2_sim_worlds/launch/go2_nav.launch.py).
@@ -74,26 +81,35 @@ def launch_setup(context):
 
     params = LaunchConfiguration('params_file').perform(context)
     map_topic = LaunchConfiguration('map_topic').perform(context)
+    nav2 = LaunchConfiguration('nav2').perform(context)
+    if nav2 not in ('own', 'dua'):
+        raise RuntimeError(f"[go2_real_nav] unknown nav2 '{nav2}': use own or dua")
     common = {'use_sim_time': False}
-    for package, executable, remappings in NAVIGATION_NODES:
-        node_params = [params, common]
-        if map_topic and executable == 'planner_server':
-            node_params.append(static_map_overrides(map_topic))
+    if nav2 == 'dua':
+        navigate_action = f'{DUA_NAV2}/navigate_to_pose'
+        explore_map = map_topic or f'{DUA_NAV2}/global_costmap/costmap'
+    else:
+        navigate_action = 'navigate_to_pose'
+        explore_map = map_topic or '/global_costmap/costmap'
+        for package, executable, remappings in NAVIGATION_NODES:
+            node_params = [params, common]
+            if map_topic and executable == 'planner_server':
+                node_params.append(static_map_overrides(map_topic))
+            actions.append(Node(
+                package=package,
+                executable=executable,
+                name=executable,
+                output='screen',
+                additional_env=NAV2_ENV,
+                parameters=node_params,
+                remappings=remappings))
         actions.append(Node(
-            package=package,
-            executable=executable,
-            name=executable,
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_navigation',
             output='screen',
             additional_env=NAV2_ENV,
-            parameters=node_params,
-            remappings=remappings))
-    actions.append(Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_navigation',
-        output='screen',
-        additional_env=NAV2_ENV,
-        parameters=[params, common]))
+            parameters=[params, common]))
 
     if LaunchConfiguration('explore').perform(context).lower() == 'true':
         actions.append(Node(
@@ -104,9 +120,9 @@ def launch_setup(context):
             parameters=[common, {
                 # The global costmap is an OccupancyGrid too: free, occupied (inflated
                 # cells included) and unknown where the lidar has not looked yet.
-                'map_topic': map_topic or '/global_costmap/costmap',
-                'navigate_action': 'navigate_to_pose',
-                'map_frame': 'map',
+                'map_topic': explore_map,
+                'navigate_action': navigate_action,
+                'map_frame': LaunchConfiguration('map_frame').perform(context),
                 'base_frame': 'dottorcane/base_link',
                 'base_frame_fallback': 'dottorcane/base_link',
                 'goal_timeout_s': 75.0,
@@ -123,9 +139,16 @@ def generate_launch_description():
             description='Zenoh router of the robot: host, IP or endpoint like tcp/<ip>:7447 '
                         '(empty: the local router)'),
         DeclareLaunchArgument(
+            'nav2', default_value='own',
+            description='own: start Nav2 here; dua: use the DUA Nav2 already running '
+                        f'({DUA_NAV2}) and start only explore'),
+        DeclareLaunchArgument(
             'map_topic', default_value='',
-            description='nav_msgs/OccupancyGrid of the SLAM, as static layer and for explore '
-                        '(empty: obstacle scan only)'),
+            description='nav_msgs/OccupancyGrid of the SLAM, as static layer (nav2:=own) and for '
+                        'explore (empty: the global costmap)'),
+        DeclareLaunchArgument(
+            'map_frame', default_value='map',
+            description='Frame of the map explore reads (header.frame_id of the costmap)'),
         DeclareLaunchArgument(
             'explore', default_value='true',
             description='Start agenticros_explore (the explore action)'),
