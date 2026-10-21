@@ -2,6 +2,37 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 21 ottobre 2026 (sera), branch `mapless`: navigazione semantica senza stima di posa
+
+Obiettivo: navigare senza alcuna stima di posa (niente EKF, SLAM, odometria, giroscopio, Nav2) e con soli modelli su Nebius (niente YOLO locale). Il robot insegue ciò che vede: il modello vision rilocalizza il bersaglio a ogni passo, una guida reattiva sul lidar istantaneo evita gli ostacoli. Tra due osservazioni il moto è un comando breve in anello aperto, che la percezione successiva corregge; nessuno stato si accumula.
+
+### In breve
+
+- **Sim e robot senza posa**: `go2_sim.launch.py localization:=none` (default sul branch: niente sostituta dell'EKF, niente TF `map`); `go2_real.launch.py localization:=none`: profondità con 0,3 s di punti e scan ostacoli con 0,3 s di nuvole, nel frame del corpo. Il launcher dell'agente non usa IMU, posa, Nav2 né posti (`NEBIUS_NAV2=off`).
+- **`ros2_drive_toward`** (nuovo tool MCP, `drive.ts`): fette di al massimo 3 s verso una direzione del corpo; sceglie la direzione libera più vicina nello scan istantaneo (un istogramma polare a una riga), rallenta e si ferma a 0,7 m dal centro della base (il muso è a ~0,35 m e lo scan scarta i punti entro 0,45 m come corpo del robot). Tutti gli avanzamenti dell'agente passano di qui: verso il bersaglio con il suo bearing, fino a 1,5 m per osservazione.
+- **Esplorazione dalla vista corrente** (`currentViewExplore`): senza giroscopio le direzioni ricordate da un giro di ricerca non valgono dopo rotazioni a tempo. Dopo un giro senza bersaglio il robot imbocca una porta che il modello vision vede ora, oppure avanza se c'è spazio, oppure ruota e guarda di nuovo.
+- **Nemotron-3.5-Super-VL** (NVIDIA) come modello vision: profilo con `enable_thinking: false` (1 s invece di 2 s, stesso box); restituisce i box su griglia 0–1000, `normalizeBox` lo riconosce.
+- **Sicurezza**: `ros2_estop` ora interrompe anche un `ros2_move_for` o un `ros2_drive_toward` in corso (prima il primo continuava fino alla sua scadenza, fino a 3 s). Le decisioni di Nemotron hanno 10 s senza retry (`NEBIUS_DECISION_TIMEOUT_S`): quando l'endpoint si blocca decide subito la policy deterministica, prima servivano fino a 2 × 60 s.
+- Scan ostacoli pubblicato reliable (AgenticROS si abbona in reliable; le costmap best effort continuano a riceverlo). Dopo ogni movimento l'agente aspetta 0,5 s prima di osservare (`NEBIUS_SETTLE_S`): la profondità non compensata altrimenti contiene punti presi durante la rotazione.
+
+### Prove in simulazione (casa, `localization:=none`)
+
+| Prova | Esito |
+| --- | --- |
+| `ros2_drive_toward` dritto per 6 fette dallo spawn verso la sala da pranzo | passa fra tavolo e sedie (deviazioni di −15° e +5°), arriva in spazio aperto, ostacolo più vicino 1,6 m |
+| e-stop a 1 s da una fetta | `aborted` a 1,0 s, poi 5 cm di scivolamento (rampa di CHAMP) |
+| "vai vicino al frigorifero", Kimi-K2.6 + Lightning | arrivato in 7 passi a 1,21 m |
+| idem con Nemotron-3.5-Super-VL | arrivato in 12 passi a 1,27 m (una deviazione a tempo della policy al passo 6) |
+| confronto vision su 7 frame con verità a terra | Kimi: 7/7 visibilità, errore di direzione mediano 2,0°, 1,20 s; Nemotron VL: 7/7, 1,1°, 1,22 s |
+| "vai vicino al letto" (altra stanza) | non raggiunto in 24 passi: il robot gira nel soggiorno; nel secondo tentativo Lightning è andato in timeout dal passo 11 |
+
+### Resta aperto
+
+- Esplorazione di più stanze senza memoria: le porte viste a 40° durante una camminata vengono ignorate (limite ±30°), un giro costa 5 viste (90° con HFOV 94,7°) e non c'è memoria dei luoghi già visti. Prossimo passo proposto: memoria dei luoghi per aspetto (descrizione del modello vision) e porte scelte dal modello sulla vista corrente.
+- La deviazione a tempo della policy (`detour`) è ridondante con la guida reattiva e allunga l'avvicinamento.
+- Sul robot: pitch del corpo non compensato (pavimento stimato per corpo in bolla), copertura dello scan con 0,3 s di nuvole Livox da verificare in RViz.
+- Lo script `test` dei package usa `--test-force-exit`, che tronca l'esecuzione in modo non deterministico (35–44 test su 44 eseguiti); senza il flag passano tutti.
+
 ## 21 ottobre 2026: navigazione con Nav2 sul Go2 reale e simulazione uguale al robot
 
 Durante le prove sul Go2 l'agente non usava mai Nav2: si muoveva solo con `cmd_vel`. Le cause, i fix e il nuovo modo di navigare, tutti provati nella simulazione con il Nav2 DUA come sul robot.

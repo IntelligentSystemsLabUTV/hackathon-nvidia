@@ -25,7 +25,7 @@ Like the DottorCane launch files, the nodes use rmw_zenoh_cpp.
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -64,6 +64,10 @@ def generate_launch_description():
             'base_height', default_value='0.34',
             description='Standing base height above the floor [m] (camera height - 0.04)'),
         DeclareLaunchArgument(
+            'localization', default_value='none',
+            description='none: no pose estimate (branch mapless), latest points only in the body frame; '
+                        'map: points compensated in the map frame of the EKF'),
+        DeclareLaunchArgument(
             'use_sim_time', default_value='false',
             description='Simulation clock (go2_sim_worlds profile:=real)'),
         Node(
@@ -81,7 +85,9 @@ def generate_launch_description():
                 'hfov_deg': ParameterValue(LaunchConfiguration('hfov_deg'), value_type=float),
                 'image_width': ParameterValue(LaunchConfiguration('image_width'), value_type=int),
                 'image_height': ParameterValue(LaunchConfiguration('image_height'), value_type=int),
-                'odom_frame': 'map',
+                'odom_frame': PythonExpression(["'map' if '", LaunchConfiguration('localization'), "' == 'map' else ''"]),
+                # Without motion compensation keep 0.3 s of points (3 clouds) instead of 0.5 s.
+                'window': ParameterValue(PythonExpression(["0.5 if '", LaunchConfiguration('localization'), "' == 'map' else 0.3"]), value_type=float),
                 'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),
             }],
             remappings=[
@@ -101,7 +107,7 @@ def generate_launch_description():
             parameters=[{
                 'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
                 'body_frame': 'dottorcane/base_link',
-                'odom_frame': 'map',
+                'odom_frame': PythonExpression(["'map' if '", LaunchConfiguration('localization'), "' == 'map' else ''"]),
                 'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),
             }],
             remappings=[

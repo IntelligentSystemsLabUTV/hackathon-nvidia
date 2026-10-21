@@ -23,8 +23,9 @@ Points are kept for `window` seconds in odom_frame and reprojected from the came
 pose of the latest cloud. In sensor coordinates the points of the last 0.5 s, taken
 while the body turned and rocked, read the floor as an obstacle for about half a
 second after every motion (measured in simulation: corridor 0.37 m instead of 4 m).
-Without the odom_frame transform the node falls back to the sensor frame, with the
-floor estimated for a level body. Points on the robot's own body (front legs, head)
+Without the odom_frame transform (or with odom_frame empty: no localization, branch
+mapless) the node falls back to the sensor frame, with the floor estimated for a
+level body; keep `window` short then, since the points are not compensated. Points on the robot's own body (front legs, head)
 are dropped with a box in the body frame.
 
 The camera must be in the TF tree (URDF or a static transform). Without a
@@ -195,7 +196,7 @@ class LidarCameraDepth(Node):
         xyz = np.asarray(xyz, dtype=np.float64).reshape(-1, 3)
         # Rays without a return are +inf in Gazebo (gpu_lidar); the Livox driver drops them.
         xyz = xyz[np.isfinite(xyz).all(axis=1)]
-        odom_from_body = self.odom_pose(msg.header.stamp)
+        odom_from_body = self.odom_pose(msg.header.stamp) if self.odom_frame else None
         if xyz.size:
             body = xyz @ to_body[:3, :3].T + to_body[:3, 3]
             on_robot = np.all((body >= self.body_box_min) & (body <= self.body_box_max), axis=1)

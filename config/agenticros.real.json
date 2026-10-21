@@ -18,7 +18,5 @@
     "maxLinearVelocity": 1.0,
     "maxAngularVelocity": 1.0
   },
-  "skillPaths": [
-    "agenticros-skills/go2-nav2-dua"
-  ]
+  "skillPaths": []
 }

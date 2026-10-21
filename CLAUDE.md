@@ -40,6 +40,10 @@ docker compose down                                             # stop, dalla st
 
 I package sim ignorati non sono versionati: ogni modifica a quei file va esportata come patch in `patches/` e documentata in `docs/GAZEBO_SETUP.md`.
 
+## Branch `mapless`
+
+Nessuna stima di posa (niente EKF, SLAM, odometria, IMU, Nav2) e solo modelli Nebius (niente YOLO locale). Default del branch: `localization:=none` in `go2_sim.launch.py` e `go2_real.launch.py`, `NEBIUS_NAV2=off`, `NEBIUS_IMU_TOPIC` vuoto, `NEBIUS_SCAN_TOPIC=/dottorcane/agent/scan_obstacles` (ogni avanzamento passa da `ros2_drive_toward`), esplorazione dalla vista corrente. Non reintrodurre stime di posa (anche il giroscopio integrato è odometria): tra due osservazioni solo comandi brevi, nessuno stato accumulato. Dettagli in `docs/CHANGELOG.md`.
+
 ## Simulazione uguale al robot (`profile:=real`, default)
 
 Stessi passi del robot reale, provati il 21 ottobre (`docs/GAZEBO_SETUP.md`, `docs/CHANGELOG.md`). Usa `dua bg` / `dua exec` dalla root di ciascun repo:

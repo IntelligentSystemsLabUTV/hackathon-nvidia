@@ -54,16 +54,16 @@ case "${target}" in
     # NEBIUS_CAMERA_TOPIC and NEBIUS_CAMERA_HFOV_DEG to the HFOV that lidar_camera_depth
     # prints at startup for the same camera.
     export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-94.7}"
-    export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-/dottorcane/go2_control/imu}"
-    # Estimated pose of the robot in the map frame (EKF + LIO-SAM; in simulation the
-    # stand-in of go2_sim.launch.py profile:=real). Never the Gazebo ground truth.
-    export AGENTICROS_POSE_TOPIC="${AGENTICROS_POSE_TOPIC-/dottorcane/slam/ekf_global/odometry}"
+    # Branch mapless: no pose estimate of any kind. No IMU heading (the gyroscope integrates
+    # into odometry), no EKF / SLAM pose, no Nav2, no places in a map frame: the robot
+    # navigates on what it sees (vision model on Nebius + instantaneous lidar).
+    export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-}"
+    export AGENTICROS_POSE_TOPIC="${AGENTICROS_POSE_TOPIC-}"
+    export NEBIUS_SESSION_PLACES="${NEBIUS_SESSION_PLACES:-off}"
+    export NEBIUS_NAV2="${NEBIUS_NAV2:-off}"
+    # Instantaneous obstacle scan of go2_real.launch.py, for the reactive drive (ros2_drive_toward).
+    export NEBIUS_SCAN_TOPIC="${NEBIUS_SCAN_TOPIC-/dottorcane/agent/scan_obstacles}"
     export AGENTICROS_DEBUG_POSE_TOPIC="${AGENTICROS_DEBUG_POSE_TOPIC:-}"
-    # Named places of this localization session ("ricorda questo posto come cucina", and every
-    # target reached), in the map frame of EKF + LIO-SAM. That frame restarts with the
-    # DottorCane stack: delete the file then (the simulation, profile:=real, clears it at start).
-    export NEBIUS_SESSION_PLACES="${NEBIUS_SESSION_PLACES:-on}"
-    export AGENTICROS_PLACES_PATH="${AGENTICROS_PLACES_PATH:-${workspace_dir}/logs/places_session.json}"
     if [[ "${target}" == "real" ]]; then
       # Estimate for the standing Go2 (head camera ~4 cm above the base): measure it.
       export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.36}"

@@ -13,9 +13,11 @@ simulator:
     Livox Mid-360 /dottorcane/sensors/livox_lidar_driver/point_cloud (and
     .../point_cloud/deskewed, the input of the DUA Nav2) at the pose of the real
     one (30 deg pitch), IMU /dottorcane/go2_control/imu; no depth camera;
-  - localization: /dottorcane/slam/ekf_global/odometry and map -> dottorcane/base_link,
-    with map at the start pose on the floor (the Gazebo pose stands in for EKF +
-    LIO-SAM; the agent never reads /gz/dottorcane/pose);
+  - localization:=none (default on branch mapless): no pose estimate at all, no
+    map frame, like the DottorCane stack without EKF and SLAM; localization:=ekf:
+    /dottorcane/slam/ekf_global/odometry and map -> dottorcane/base_link, with map
+    at the start pose on the floor (the Gazebo pose stands in for EKF + LIO-SAM;
+    the agent never reads /gz/dottorcane/pose);
   - go2_real.launch.py: depth from the lidar (/dottorcane/agent/depth) and the
     obstacle scan (/dottorcane/agent/scan_obstacles);
   - rmw_zenoh_cpp: start a router on this machine first (`zenohd`, port 7447),
@@ -214,6 +216,9 @@ def launch_setup(context):
     if profile not in ('real', 'zed'):
         raise RuntimeError(f"Unknown profile '{profile}'. Available: real, zed")
     real = profile == 'real'
+    localization = LaunchConfiguration('localization').perform(context)
+    if localization not in ('none', 'ekf'):
+        raise RuntimeError(f"Unknown localization '{localization}'. Available: none, ekf")
     if real and nav != 'none':
         raise RuntimeError(
             "profile:=real uses the DUA Nav2 (dua_nav2: dottorcane.launch.py use_sim_time:=true) "
@@ -410,7 +415,7 @@ def launch_setup(context):
         ],
         output='screen'))
 
-    if real:
+    if real and localization == 'ekf':
         # The map frame below starts here: places saved by the agent in a previous run
         # (scripts/run_nebius_agent.sh, logs/places_session.json) no longer hold.
         places = Path(get_package_share_directory(PACKAGE)).parents[3] / 'logs' / 'places_session.json'
@@ -435,6 +440,7 @@ def launch_setup(context):
                 'origin_yaw': yaw,
             }],
             remappings=[('pose', '/gz/dottorcane/pose'), ('odom', 'ekf_global/odometry')]))
+    if real:
         # Lidar depth and obstacle scan, as on the Jetson.
         actions.append(IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(
@@ -442,6 +448,7 @@ def launch_setup(context):
             launch_arguments={
                 'use_sim_time': 'true',
                 'base_height': str(SIM_BASE_HEIGHT),
+                'localization': 'map' if localization == 'ekf' else 'none',
             }.items()))
         return actions
 
@@ -504,6 +511,10 @@ def generate_launch_description():
             'profile', default_value='real',
             description='real: sensors, topics, frames and middleware of the real DottorCane; '
                         'zed: previous simulation with ZED cameras (needed by nav:=map|slam)'),
+        DeclareLaunchArgument(
+            'localization', default_value='none',
+            description='profile:=real: none (no pose estimate, branch mapless) or ekf '
+                        '(Gazebo pose as EKF + LIO-SAM, map frame at the start pose)'),
         DeclareLaunchArgument(
             'zenoh_router', default_value='false',
             description='profile:=real: also start a zenoh router (rmw_zenohd); '

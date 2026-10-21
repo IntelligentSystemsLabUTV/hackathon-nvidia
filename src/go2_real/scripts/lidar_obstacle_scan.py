@@ -17,6 +17,11 @@ The Mid-360 is tilted 30 deg forward: behind the robot its rays point upward and
 never see the floor band. A direction without obstacles reads +inf (Nav2 clears
 it) only within +/- clear_half_angle_deg of the front; behind it reads NaN, so
 the costmaps keep what they marked there before.
+
+With odom_frame empty (no localization, branch mapless) the points stay in the
+body frame for body_window seconds (default 0.3 s, 3 clouds), uncompensated: one
+cloud alone missed thin table legs at 2 m half of the time, and at 0.25 m/s the
+oldest points are at most 7.5 cm off, inside the stop clearance of the drive.
 """
 
 import math
@@ -57,6 +62,7 @@ class LidarObstacleScan(Node):
         self.max_height = p('max_height', 0.70).value
         self.range_max = p('range_max', 8.0).value
         self.window = p('window', 0.3).value
+        self.body_window = p('body_window', 0.3).value
         self.angle_increment = p('angle_increment', math.radians(0.5)).value
         self.clear_half_angle = math.radians(p('clear_half_angle_deg', 100.0).value)
         # Box around the robot in the body frame: points inside are the robot itself.
@@ -71,7 +77,9 @@ class LidarObstacleScan(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.clouds = []  # (stamp seconds, Nx3 obstacle points in the odom frame)
         self.warned = set()
-        self.pub = self.create_publisher(LaserScan, 'scan', qos_profile_sensor_data)
+        # Reliable: AgenticROS (ros2_drive_toward) subscribes reliably; best-effort subscribers
+        # such as the Nav2 costmaps still match a reliable publisher.
+        self.pub = self.create_publisher(LaserScan, 'scan', 5)
         self.create_subscription(PointCloud2, 'points', self.on_cloud, qos_profile_sensor_data)
 
     def warn_once(self, key, text):
@@ -96,7 +104,8 @@ class LidarObstacleScan(Node):
     def on_cloud(self, msg: PointCloud2):
         stamp = Time.from_msg(msg.header.stamp)
         body_from_lidar = self.lookup(self.body_frame, msg.header.frame_id, stamp)
-        odom_from_body = self.lookup(self.odom_frame, self.body_frame, stamp)
+        # Without a localization frame the body frame stands in, and only the latest cloud is kept.
+        odom_from_body = self.lookup(self.odom_frame, self.body_frame, stamp) if self.odom_frame else np.eye(4)
         if body_from_lidar is None or odom_from_body is None:
             return
         xyz = point_cloud2.read_points_numpy(msg, field_names=('x', 'y', 'z'), skip_nans=True)
@@ -111,7 +120,8 @@ class LidarObstacleScan(Node):
 
         now = stamp.nanoseconds * 1e-9
         self.clouds.append((now, odom))
-        self.clouds = [(s, c) for s, c in self.clouds if now - s <= self.window]
+        window = self.window if self.odom_frame else self.body_window
+        self.clouds = [(s, c) for s, c in self.clouds if now - s <= window]
         body_from_odom = np.linalg.inv(odom_from_body)
         pts = np.concatenate([c for _, c in self.clouds])
         self.publish(msg.header.stamp, pts @ body_from_odom[:3, :3].T + body_from_odom[:3, 3])

@@ -22,6 +22,10 @@ cd tools/agenticros && pnpm build && cd ~/workspace   # AgenticROS (l'agente gir
 
 `.env` nella root deve contenere `NEBIUS_API_KEY` (vedi `.env.example`). Per la percezione con i box conviene `NEBIUS_VISION_MODEL=moonshotai/Kimi-K2.6`, oppure nessuna riga: è il default.
 
+### Branch `mapless`: navigazione senza stima di posa
+
+Su questo branch il robot non stima in nessun modo la propria posa: niente EKF, SLAM, odometria, giroscopio o Nav2. Il modello vision su Nebius (`NEBIUS_VISION_MODEL=nvidia/Nemotron-3.5-Super-VL` consigliato, o Kimi-K2.6) rilocalizza il bersaglio a ogni passo, e il tool `ros2_drive_toward` guida verso di lui evitando gli ostacoli dello scan lidar istantaneo. In simulazione: router `zenohd`, poi `sim_zenoh` e il launch `go2_sim_worlds go2_sim.launch.py world:=house gui:=false` (default `localization:=none`), poi `./scripts/run_nebius_agent.sh "vai vicino al frigorifero"`. Sul robot: bringup DottorCane, `go2_real.launch.py` (default `localization:=none`), agente. Misure e limiti in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+
 ### 0. Simulazione uguale al robot (default)
 
 Dal 21 ottobre `go2_sim.launch.py` usa di default `profile:=real`: stessi topic, frame, sensori (camera frontale del Go2, Mid-360, niente camera di profondità), middleware (zenoh) e Nav2 (quello DUA, repo `dua_nav2`) del DottorCane reale, con gli stessi passi della prova sul robot. Comandi e verifiche in [`docs/GAZEBO_SETUP.md`](docs/GAZEBO_SETUP.md#simulazione-uguale-al-robot-profilereal), risultati in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). L'agente (`GO2_TARGET=sim`, default) usa Nav2 per avvicinarsi, esplorare e tornare ai posti salvati ("ricorda questo posto come cucina", "torna dal frigorifero").
