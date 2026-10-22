@@ -64,6 +64,9 @@ def generate_launch_description():
             'base_height', default_value='0.34',
             description='Standing base height above the floor [m] (camera height - 0.04)'),
         DeclareLaunchArgument(
+            'cliff_check', default_value='true',
+            description='Treat a missing floor ahead (stairs going down) as an obstacle in the scan'),
+        DeclareLaunchArgument(
             'localization', default_value='none',
             description='none: no pose estimate (branch mapless), latest points only in the body frame; '
                         'map: points compensated in the map frame of the EKF'),
@@ -109,6 +112,7 @@ def generate_launch_description():
                 'body_frame': 'dottorcane/base_link',
                 'odom_frame': PythonExpression(["'map' if '", LaunchConfiguration('localization'), "' == 'map' else ''"]),
                 'base_height': ParameterValue(LaunchConfiguration('base_height'), value_type=float),
+                'cliff_check': ParameterValue(LaunchConfiguration('cliff_check'), value_type=bool),
             }],
             remappings=[
                 ('points', LaunchConfiguration('points')),

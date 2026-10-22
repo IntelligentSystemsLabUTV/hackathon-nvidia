@@ -44,6 +44,23 @@ Verificato nel container cudev, senza robot:
 - la configurazione client di `rviz.launch.py` raggiunge il router;
 - con TF e `camera_info` come quelli reali e una scena sintetica (muro a 2 m, scatola a 1 m, pavimento, zampe), le funzioni di profondità dell'agente leggono 0,67 m nel box della scatola, 1,67 m sul muro e un ostacolo nel corridoio a 0,67 m. I valori sono quelli attesi, in entrambe le convenzioni del frame camera e anche senza `camera_info` (`hfov_deg`).
 
+## Branch `mapless`: prova sul robot senza stima di posa
+
+Su questo branch il robot non usa EKF, SLAM, odometria, giroscopio né Nav2: il modello vision su Nebius rilocalizza il bersaglio (o l'apertura scelta, il waypoint semantico) a ogni passo, e `ros2_drive_toward` guida verso di lui sullo scan istantaneo del Mid-360. Lo stack DottorCane serve solo per `go2_control` (cmd_vel, camera frontale `dottorcane/front_camera_link`), il Mid-360 e le TF fisse del robot; la sua localizzazione può girare ma non viene letta.
+
+1. Jetson, container DottorCane: bringup (`dottorcane_slam.launch.py` va bene; basta il Mid-360).
+2. Jetson, nostro container: `go2_real.launch.py` (default `localization:=none`: profondità e scan nel frame del corpo, controllo dei dislivelli attivo; `base_height:=` se la base in piedi non è a 0,34 m; `cliff_check:=false` solo se un pavimento scuro e lucido non restituisce punti).
+3. Controlli prima di muovere, con `dottorcane_zenoh`:
+   - `ros2 topic hz /dottorcane/agent/scan_obstacles` e `/dottorcane/agent/depth` a ~10 Hz (l'agente si rifiuta di partire senza: messaggio "Sensori non disponibili");
+   - in RViz la profondità dal lidar non deve mostrare il pavimento davanti al robot fermo; nel log di `lidar_obstacle_scan` non deve comparire `no floor ahead` su pavimento piano.
+4. `dottorcane_arm`.
+5. **Calibrazione delle rotazioni**, la prima cosa da fare: senza giroscopio il giro di ricerca (5 rotazioni da 90°) e la rotazione verso l'apertura scelta sono a tempo. `./scripts/run_nebius_agent.sh "ruota a destra di 90 gradi"` (e "avanza di un metro"), misura l'angolo reale e imposta `NEBIUS_TURN_EFFICIENCY` (e `NEBIUS_FORWARD_EFFICIENCY`) nel `.env`. Gli avanzamenti verso un bersaglio sono comunque chiusi dalla percezione successiva.
+6. Agente, sulla Jetson: `NEBIUS_VISION_MODEL=nvidia/Nemotron-3.5-Super-VL ./scripts/run_nebius_agent.sh "vai vicino alla sedia"` (bersaglio a 2–5 m), poi uno in un'altra stanza.
+
+Cosa guardare nel log: `[Drive] ... m commanded (... m from the scan)`: con il robot che cammina davvero i due numeri devono essere simili; due fette di fila senza avanzamento misurato chiudono il passo come `stuck`. `[Waypoint] in view at ...` mentre attraversa una porta. `[Decision] ... retrying with nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` se Lightning non risponde.
+
+Sicurezza: `ros2_estop` (anche Ctrl-C dell'agente) ferma subito anche una fetta di guida in corso; tra una fetta e l'altra il robot è fermo; una strada bloccata viene ritentata una volta dopo 2 s (persone che passano). Il telecomando resta il freno. Limiti noti: il pavimento è stimato per corpo in bolla (niente IMU), il vetro può non comparire nello scan, la retromarcia (`backUp`) è cieca.
+
 ## Workflow completo (agente + Nav2 DUA)
 
 È lo stesso che gira in simulazione con `go2_sim.launch.py profile:=real` (vedi [GAZEBO_SETUP.md](GAZEBO_SETUP.md#simulazione-uguale-al-robot-profilereal)), dove è stato provato; i dettagli dei singoli passi sono nelle sezioni sotto.

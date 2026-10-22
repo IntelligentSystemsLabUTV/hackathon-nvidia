@@ -2,6 +2,38 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 22 ottobre 2026 (notte), branch `mapless`: waypoint semantici, guida reattiva corretta, robustezza per il robot reale
+
+### Bug critico corretto: lo scan arrivava come byte
+
+Attraverso il transport di AgenticROS il campo `ranges` del `LaserScan` arrivava come byte grezzi (quattro per float32), e `ros2_drive_toward` li leggeva come metri: la guida reattiva di ieri sera era praticamente cieca (le prove senza collisioni erano in parte fortuna; il robot bloccato contro il letto ne era una conseguenza). `decodeRanges` riconosce e decodifica i byte; con lo scan vero il robot devia davanti al tavolo da pranzo (ostacolo più vicino 0,8 m) e l'avanzamento misurato dallo scan coincide con quello reale (0,6–0,8 m per fetta).
+
+### In breve
+
+- **Waypoint semantici** (`chooseWaypoint`, `applyWaypoint`): dopo un giro senza bersaglio il modello vision vede il mosaico delle viste con una memoria testuale dei luoghi visti e descrive l'apertura da prendere; il robot ruota una volta verso quella vista, poi la ritrova in ogni fotogramma dalla descrizione (stessa chiamata di `describe`) e la attraversa, con la camminata allungata dalla distanza misurata. Senza waypoint per 3 viste si torna alle porte della vista corrente.
+- **Waypoint di percorso** (`chooseRouteOpening`): bersaglio in vista ma strada dritta chiusa (due guide bloccate di fila, o il modello che vuole arrendersi): il modello vision indica l'apertura che porta al bersaglio; fino al passaggio il bersaglio è nascosto alla policy. Al massimo 2 per compito.
+- **Prompt del mosaico**: "se il bersaglio si vede attraverso un vetro, scegli la porta accanto, un varco a livello del pavimento, non pavimento libero". Offline su 3 giri della casa (letto, varco ovest) errore di direzione 39 / 32 / 129° contro 159 / 60 / 127° senza.
+- **Avanzamento misurato dallo scan** (`scanProgress`): mediana dell'accorciamento dei raggi entro ±30°; due fette di fila con 0,4 m comandati e meno di 0,1 m misurati chiudono il passo come `stuck`. Valori molto negativi (scena che cambia) sono ignorati.
+- **Dislivelli** (`lidar_obstacle_scan.py`, `cliff_check`): senza punti di pavimento fra 0,6 e 1,2 m davanti, o con punti 12 cm sotto il pavimento, il fronte diventa un ostacolo (scale in discesa). Nessun falso allarme in simulazione dopo l'avvio.
+- **Strada bloccata**: attesa di 2 s e un nuovo tentativo (persone che passano). **Distanza di arrivo corta** ("a 40 cm"): la soglia della guida scende fino a 0,5 m dal centro della base.
+- **Controllo all'avvio**: senza scan ostacoli o profondità l'agente non parte e lo dice ("Sensori non disponibili ... avvia go2_real.launch.py").
+- **Resa rifiutata** in modalità mapless finché il bersaglio non è stato visto e restano ricerca o esplorazione (Nemotron Nano si arrendeva dopo 2,5 m con la porta scelta in vista).
+- **Ripiego del modello**: con Lightning in timeout la stessa chiamata riparte su `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` con `enable_thinking: false` (0,75 s invece di 33 s), che serve anche le 5 decisioni seguenti; l'interpretazione della richiesta ha 30 s senza retry. La guida reattiva non subentra più alla policy quando la camera vede poco spazio davanti: le deviazioni a tempo da 40° litigavano con la guida.
+
+### Prove (casa, `localization:=none`, Nemotron-3.5-Super-VL)
+
+| Prova | Esito |
+| --- | --- |
+| "vai vicino al frigorifero" con lo scan corretto (Lightning in timeout, decisioni del ripiego) | arrivato in 7 passi a 1,18 m |
+| "vai vicino al letto" dallo spawn, 5 corse | 2 arrivi (23 e 29 passi, attraverso il varco seguendo il waypoint), 3 fallimenti: resa prematura di Nano (corretto), letto visto attraverso la vetrata e strada chiusa (corretto in parte con il waypoint di percorso), letto visto e perso dietro la vetrata (aperto) |
+| ripiego con modello primario inesistente | interpretazione e risposta da Nano |
+| controllo all'avvio con scan inesistente | messaggio, nessun movimento, nessuna chiamata a Nebius |
+
+### Resta aperto
+
+- Il letto della casa è difficile per costruzione: un solo varco largo, affiancato da vetrate da cui il letto si vede. Idee: un mosaico panoramico (le viste a 90° mettono il varco sul bordo fra due viste), riconoscere "visto attraverso il vetro" dalla profondità che legge il vetro, ricordare l'apertura da cui il robot è arrivato.
+- Sul robot reale: calibrare `NEBIUS_TURN_EFFICIENCY` (senza giroscopio il giro di ricerca e la rotazione verso il waypoint sono a tempo), verificare il controllo dei dislivelli su pavimenti scuri.
+
 ## 21 ottobre 2026 (sera), branch `mapless`: navigazione semantica senza stima di posa
 
 Obiettivo: navigare senza alcuna stima di posa (niente EKF, SLAM, odometria, giroscopio, Nav2) e con soli modelli su Nebius (niente YOLO locale). Il robot insegue ciò che vede: il modello vision rilocalizza il bersaglio a ogni passo, una guida reattiva sul lidar istantaneo evita gli ostacoli. Tra due osservazioni il moto è un comando breve in anello aperto, che la percezione successiva corregge; nessuno stato si accumula.
