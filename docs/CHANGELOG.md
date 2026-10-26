@@ -2,6 +2,97 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 26 ottobre 2026 (sera), branch `mapless`: aggiornato a master, action `ReactiveDrive` ripresa
+
+`master` unito in `mapless` (repo e submodule), con sopra il lavoro sull'action `ReactiveDrive` del 22 ottobre (voce sotto), mai committato prima. Da master arrivano i ripieghi dei modelli di ragionamento e vision, il messaggio del Ctrl-C e `lidar_nav_cloud.py`. Scelte del merge:
+
+- **Controllo all'avvio**: unione delle due versioni. Controlla lo scan ostacoli se c'è `NEBIUS_SCAN_TOPIC` (mapless) e la profondità.
+- **`cliff_check`** resta acceso di default su mapless: qui lo scan serve alla guida reattiva, non alle costmap di Nav2.
+- **`lidar_nav_cloud`** parte solo con `localization:=map`: la sua fascia è nel frame `map`, che senza localizzazione non esiste.
+
+Prove in sim (casa, zenoh con router su loopback, `localization:=none`):
+
+| Prova | Esito |
+| --- | --- |
+| test unitari | nebius 49, claude-code 45, nessun fallimento |
+| `ReactiveDrive` via MCP: `HEADING` 1,5 m, preemption, `ros2_estop`, client ucciso | 1,68 m; nessuna fermata al cambio di goal; `canceled` in 15 ms con 0,11 m di scivolamento; `client_lost` dopo 1,5 s senza heartbeat, robot fermo |
+| controllo all'avvio con lo scan assente | messaggio, nessun movimento, nessuna chiamata a Nebius |
+| "vai vicino al frigorifero" (policy `auto`) dallo spawn | 3 passi in 29 s, un'avanzata con 4 rilocalizzazioni, arrivo a 1,12 m; 10 chiamate Nebius |
+| Ctrl-C durante l'avanzata | goal `canceled`, 0,28 m di frenata, poi fermo |
+| "ruota a destra di 90 gradi e poi avanza di un metro" | ruota di 89°, poi rifiuta di avanzare: tavolino basso a 0,39 m (corretto) |
+| "cosa vedi davanti a te? non muoverti" | descrizione corretta (tavolino e divano) |
+| "vai vicino al letto" (policy `auto`) | **falso arrivo** dopo 38 passi e 281 s, 47 chiamate: Kimi-K2.6 ha preso il mobile TV (`TVCabinet_01`, a ~1 m) per un telaio di letto, e il controllo sul ritaglio l'ha confermato 3 volte di fila |
+
+## 26 ottobre 2026: fix del branch `mapless` portati su master, prove per la demo
+
+### In breve
+
+- **Ripiego del modello di ragionamento**: ogni decisione ha 10 s (`NEBIUS_DECISION_TIMEOUT_S`) e nessun retry, l'interpretazione della richiesta 30 s. Se il modello primario fallisce, la stessa chiamata riparte su `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` con `enable_thinking: false` (`NEBIUS_FALLBACK_REASONING_MODEL`, vuoto per disattivarlo), che serve anche le 5 chiamate successive.
+- **Ripiego del modello vision** (nuovo): Kimi-K2.6 ha risposto `529 System is overloaded` due volte di fila e la richiesta "cosa vedi?" è finita con un errore. Ora la chiamata riparte su `nvidia/Nemotron-3.5-Super-VL` (`NEBIUS_FALLBACK_VISION_MODEL`), che serve le 5 successive; vale solo per un modello con la stessa grounding del primario. Il profilo di Nemotron-3.5-Super-VL (box su griglia 0–1000, `enable_thinking: false`, ~1 s) è in `vision.ts`.
+- **Controllo all'avvio**: senza messaggi sulla profondità (`NEBIUS_DEPTH_TOPIC`) l'agente non parte e lo dice ("Sensori non disponibili ... avvia go2_real.launch.py"), senza chiamate a Nebius.
+- **`ros2_estop` interrompe anche un `ros2_move_for` in corso**: prima il comando continuava fino alla sua scadenza, fino a 3 s.
+- **Ctrl-C**: l'agente stampava `estop failed: MCP error -32000: Connection closed`, perché il server MCP riceve lo stesso segnale, ferma il robot e annulla i goal Nav2 da solo, poi chiude la connessione. Ora stampa `robot stopped by the MCP server on the same signal`.
+- **Dislivelli** (`lidar_obstacle_scan.py`, `cliff_check`), portato dal branch mapless ma **spento di default su master**: lo scan va nelle costmap di Nav2, e un falso dislivello su un pavimento scuro (non ancora provato sul reale) bloccherebbe le navigazioni. `go2_real.launch.py cliff_check:=true` per attivarlo.
+- **dua_nav2** (`dottorcane.yaml`, modifica locale): la costmap globale è una finestra mobile centrata sul robot; con 20×20 m un posto salvato a 11 m ("vai in cucina" dalla camera da letto) veniva rifiutato in 0,05 s con `Goal Coordinates ... was outside bounds`. Ora è di 40×40 m (0,2 m/cella).
+- **Nuvola per Nav2 in Wi‑Fi** (nuovo, `lidar_nav_cloud.py` in `go2_real.launch.py`, `nav_cloud:=false` per toglierlo): le costmap di dua_nav2 prendevano la nuvola deskewed completa del Mid-360, ~200k punti/s da 32 byte (x, y, z, intensity, tag, ring, timestamp), ~6,4 MB/s. Nav2 sul PC è client zenoh del router della Jetson e le due costmap stanno in due processi, quindi in Wi‑Fi la nuvola passava due volte (~100 Mbit/s), sullo stesso collegamento del `cmd_vel` di Nav2 (watchdog di `go2_control` a 500 ms). Il nodo, sulla Jetson, ripubblica in `/dottorcane/agent/nav_cloud` solo i punti nella fascia degli ostacoli delle costmap (0,1–1,0 m di z nel frame `map`, come le filtra Nav2), un punto per voxel di 5 cm, solo x y z, nel frame e con lo stamp della nuvola originale. `dua_nav2/.../dottorcane.yaml` ora legge quel topic (modifica locale, il topic originale è nel commento). In sim: 4,02 MB/s → 0,20 MB/s a 10 Hz (11520 → ~1200 punti per nuvola); costmap a pari posa uguali (globale: ignoto 1480,3 contro 1482,0 m², occupato 15,6 contro 14,9 m²; locale: libero 30,0 contro 30,1 m², occupato 11,2 contro 11,4 m²).
+
+Non portati, perché sono solo del branch mapless: waypoint semantici, `ros2_drive_toward`, l'action `ReactiveDrive`, l'esplorazione dalla vista corrente. Il fix del bersaglio visto da vicino (`closeFirstSighting` con due controlli sul ritaglio) era già su master.
+
+### Prove in simulazione (casa, `profile:=real`, Nav2 DUA, zenoh con router su loopback)
+
+| Prova | Esito |
+| --- | --- |
+| `ros2_navigate_to_pose` 2,5 m (tool MCP) | `succeeded` in 5,5 s |
+| `ros2_estop` durante un goal Nav2 | goal `canceled` in 12 ms; il robot scivola ancora 0,54 m (rampa di velocità di CHAMP da ~1 m/s, artefatto della sim) |
+| `ros2_estop` durante `ros2_move_for` 3 s a 0,25 m/s | fermo dopo 0,18 m (prima ~0,6 m) |
+| controllo all'avvio con profondità assente | messaggio, nessun movimento, nessuna chiamata a Nebius |
+| modello di ragionamento inesistente | 404, risposta di Nano in 1,2 s |
+| modello vision inesistente | 404, descrizione di Nemotron-3.5-Super-VL in 1,1 s |
+| "vai vicino al frigorifero" (policy `auto`, poi Nemotron) | 5–8 passi, un goal Nav2 da ~7 m, arrivo a 1,0–1,2 m |
+| "vai vicino alla sedia" (Nemotron, decisioni in 0,3–0,4 s) | 8 passi, arrivo a 0,81 m |
+| "vai vicino al letto" (altra stanza, frontiere) | 16–18 passi, arrivo a 0,5–1,1 m |
+| "ricorda questo posto come cucina", "torna dal frigorifero", "torna in cucina" | salvato; goal Nav2 da 7–27 s, arrivo a ~3 cm dalla posa salvata |
+| Ctrl-C (SIGINT al gruppo di processi, come il terminale) durante "torna a partenza" con Nav2 | fermo: 0,25 m di frenata in 1,5 s, poi fermo; il goal Nav2 annullato dall'estop del server MCP |
+| "ruota a destra di 90 gradi e poi avanza di un metro" | 88°, 0,95 m |
+| 3 goal di `explore` (tool MCP) e "vai vicino al frigorifero" con `nav_cloud` | `succeeded`; frigorifero in 5 passi, goal Nav2 da 6,9 m, arrivo a 1,04 m |
+
+Una corsa verso il letto si è chiusa con "robot bloccato": la frontiera portava verso il balcone e il robot è finito contro la porta a soffietto `FoldingDoor_02`, dove Gazebo è sceso a RTF 0,007 (la fisica si è fermata, come nell'incastro in palestra già noto). L'agente ha riconosciuto la rotazione bloccata dall'IMU, ha fatto i 5 tentativi di sblocco e si è fermato; la richiesta successiva è stata rifiutata dal controllo all'avvio. Rifatta da una sim nuova, è arrivata a 1,08 m.
+
+## 22 ottobre 2026, branch `mapless`: guida come action sul robot (`reactive_drive`)
+
+### Perché
+
+Sul robot reale `ros2_drive_toward` comandava il `cmd_vel` dall'agente a fette di 1–3 s: il robot si fermava alla fine di ogni fetta e il wifi stava dentro l'anello di controllo, quindi si muoveva a stento. Ora il controllo gira sulla Jetson, accanto al lidar e a `go2_control`, e l'agente manda solo goal.
+
+### In breve
+
+- **Action `agenticros_msgs/action/ReactiveDrive`**, server `go2_real/scripts/reactive_drive.py` (`/dottorcane/agent/reactive_drive`, lanciato da `go2_real.launch.py`, `reactive_drive:=true` di default). Gira a 20 Hz sullo scan ostacoli istantaneo nel frame del corpo, senza stima di posa. In modo `TARGET` il bersaglio viene seguito come cluster di punti dello scan, inizializzato da direzione e distanza del modello vision, e il robot si ferma alla distanza di arrivo misurata sulla superficie più vicina del cluster; poi si gira verso il bersaglio (entro 6°). In modo `HEADING` percorre una distanza in una direzione (esplorazione, deviazioni, distanza ignota).
+- **Preemption senza fermarsi**: un nuovo goal sostituisce quello in corso e la rampa di velocità continua. Il cancel ferma subito il robot e `ros2_estop` cancella il goal (107 ms in simulazione, 0,08 m di scivolamento).
+- **Heartbeat**: mentre un goal è attivo il server MCP pubblica `/dottorcane/agent/reactive_drive/heartbeat` (`std_msgs/Empty`) a 5 Hz. Dopo 1,5 s senza heartbeat il nodo chiude il goal come `client_lost` e ferma il robot (agente ucciso, wifi caduto). Il grafo ROS non basta: un client ucciso resta visibile finché scade il lease della discovery, e in simulazione il robot ha continuato a camminare. Per un goal a mano con `ros2 action send_goal` serve `heartbeat_timeout_s:=0`.
+- **Velocità** fra 0,15 e 0,5 m/s, rotazioni fra 0,3 e 0,8 rad/s. Il goal può abbassarle (limiti di sicurezza di AgenticROS), mai alzarle. Il robot frena con `v ≤ √(2·0,4·distanza residua)`: con il limite lineare di prima arrivava allo stop a 0,46 m/s e scivolava 0,2 m oltre.
+- **Esiti**: `arrived`, `done`, `lost` (cluster perso per 1 s), `blocked` (nessuna direzione libera per 2 s), `stuck` (avanti comandato ma il bersaglio o i raggi davanti non si avvicinano), `timeout`, `no_scan`, `client_lost`, `canceled`, `preempted`. Il risultato riporta distanza e rotazione comandate su tutta la catena di goal sostituiti.
+- **Tool MCP `ros2_reactive_drive`** (`op=start|status|cancel`): `start` torna subito (220 ms), lo stato arriva dal feedback a 10 Hz. Il transport locale tiene un `ActionClient` per action invece di crearne uno a ogni goal.
+- **Agente** (`driveWithAction`, default con `NEBIUS_REACTIVE_DRIVE_ACTION=/dottorcane/agent/reactive_drive`, `off` torna alle fette): verso un bersaglio confermato a distanza nota manda un goal `TARGET` e, mentre il robot cammina, lo rilocalizza con il modello vision ogni 2 s (4 s quando il lidar lo segue), al massimo 5 volte per avanzata. L'arrivo lo decide come prima l'osservazione successiva, fatta da fermo, con i controlli sul ritaglio.
+- Corretti nel nodo: angolo voluto di `HEADING` non normalizzato (a 180° il robot restava fermo fino al timeout); comandi integrati con 1/20 s mentre l'anello gira a 13–16 Hz (1,5 m comandati diventavano 2,9 m); il tracker si agganciava alle sedie davanti al frigorifero.
+- `run_nebius_agent.sh` su mapless ignora `NEBIUS_IMU_TOPIC` anche se è nel `.env`, e lo scrive nel log. `go2_sim.launch.py rmw:=rmw_fastrtps_cpp` per le prove locali su DDS, con un `ROS_DOMAIN_ID` dedicato. `agenticros_setup` rigenera i binding di rclnodejs: senza, la nuova action non viene trovata (`The message required does not exist`).
+
+### Prove (casa, solo locale: Fast DDS, `ROS_DOMAIN_ID=87`, `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`)
+
+| Prova | Esito |
+| --- | --- |
+| oracolo senza token (posa vera → goal ogni 2 s), spawn → frigorifero a 8,8 m | `arrived` in 15 s con 8 goal; faccia del frigorifero a ~1,07 m (stop richiesto 1,0 m) |
+| `HEADING` 1,5 m / 180° | 1,71 m / ~198° reali (sim, efficienze di CHAMP 0,84 / 0,77 misurate a velocità più basse) |
+| preemption 0° → 45° dopo 2 s | nessuna fermata (0,34 m/s al cambio), `done` |
+| client MCP ucciso (SIGKILL) durante un goal di 6 m | `client_lost` 1,5 s dopo, robot fermo; senza heartbeat proseguiva |
+| agente, `NEBIUS_POLICY=auto`, "vai vicino al frigorifero" dallo spawn | arrivato in 3 passi: una sola avanzata di 15 s con 4 rilocalizzazioni, lidar agganciato al frigorifero da 4 m; ~10 chiamate Nebius |
+| stesso, partendo girato di 180° | 2 rotazioni di ricerca, poi un'avanzata di 5,9 m in 14,6 s, arrivato al passo 5 |
+
+### Resta aperto
+
+- Sul robot reale: misurare il filtro delle zampe (`body_y_m` 0,32, da uno scan del robot fermo), la frenata dello sport mode (`brake_decel`) e le efficienze (`forward_efficiency`/`turn_efficiency`, 1,0 di default).
+- Il cluster seguito può essere il bordo del bersaglio o un oggetto accanto (−15° fra direzione seguita e centro del frigorifero all'arrivo): lo coprono il controllo sul ritaglio all'arrivo e la rilocalizzazione.
+
+
 ## 22 ottobre 2026 (notte), branch `mapless`: waypoint semantici, guida reattiva corretta, robustezza per il robot reale
 
 ### Bug critico corretto: lo scan arrivava come byte

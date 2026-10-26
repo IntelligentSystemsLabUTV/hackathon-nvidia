@@ -15,7 +15,9 @@ install(
 install(
   PROGRAMS
     scripts/lidar_camera_depth.py
+    scripts/lidar_nav_cloud.py
     scripts/lidar_obstacle_scan.py
+    scripts/reactive_drive.py
   DESTINATION
     lib/${PROJECT_NAME}
 )

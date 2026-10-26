@@ -42,7 +42,8 @@ target="${GO2_TARGET:-sim}"
 case "${target}" in
   real | sim)
     # Overrides ros2init's rmw_fastrtps_cpp: the DottorCane nodes only talk over zenoh.
-    export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+    # GO2_RMW=rmw_fastrtps_cpp for local tests of the simulation on DDS (with a ROS_DOMAIN_ID).
+    export RMW_IMPLEMENTATION="${GO2_RMW:-rmw_zenoh_cpp}"
     # The real config also in the cudev container, whose AGENTICROS_CONFIG_PATH points to the
     # sim-zed one; GO2_AGENTICROS_CONFIG overrides it (e.g. config/agenticros.local.json).
     export AGENTICROS_CONFIG_PATH="${GO2_AGENTICROS_CONFIG:-${workspace_dir}/config/agenticros.real.json}"
@@ -57,12 +58,20 @@ case "${target}" in
     # Branch mapless: no pose estimate of any kind. No IMU heading (the gyroscope integrates
     # into odometry), no EKF / SLAM pose, no Nav2, no places in a map frame: the robot
     # navigates on what it sees (vision model on Nebius + instantaneous lidar).
-    export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-}"
+    # Forced off even when .env sets it (a .env of the master branch did, on the real robot).
+    if [[ -n "${NEBIUS_IMU_TOPIC:-}" ]]; then
+      echo "[run_nebius_agent] mapless: ignoring NEBIUS_IMU_TOPIC=${NEBIUS_IMU_TOPIC} (no IMU heading)" >&2
+    fi
+    export NEBIUS_IMU_TOPIC=""
     export AGENTICROS_POSE_TOPIC="${AGENTICROS_POSE_TOPIC-}"
     export NEBIUS_SESSION_PLACES="${NEBIUS_SESSION_PLACES:-off}"
     export NEBIUS_NAV2="${NEBIUS_NAV2:-off}"
     # Instantaneous obstacle scan of go2_real.launch.py, for the reactive drive (ros2_drive_toward).
     export NEBIUS_SCAN_TOPIC="${NEBIUS_SCAN_TOPIC-/dottorcane/agent/scan_obstacles}"
+    # Forward motions as goals of the robot's ReactiveDrive action (go2_real.launch.py
+    # reactive_drive:=true): the 20 Hz loop runs next to the lidar, the agent re-aims while the
+    # robot walks. "off": ros2_drive_toward slices commanded from here (old behaviour).
+    export NEBIUS_REACTIVE_DRIVE_ACTION="${NEBIUS_REACTIVE_DRIVE_ACTION-/dottorcane/agent/reactive_drive}"
     export AGENTICROS_DEBUG_POSE_TOPIC="${AGENTICROS_DEBUG_POSE_TOPIC:-}"
     if [[ "${target}" == "real" ]]; then
       # Estimate for the standing Go2 (head camera ~4 cm above the base): measure it.

@@ -76,6 +76,9 @@ set -u
 
 cd "$AGENTICROS_ROOT"
 pnpm install --frozen-lockfile
+# rclnodejs generates its JavaScript bindings only when it is first installed: regenerate them so
+# that interfaces added later (agenticros_msgs/action/ReactiveDrive) are found at runtime.
+pnpm --filter @agenticros/core exec generate-ros-messages
 pnpm build
 
 echo "AgenticROS is ready. Run: agenticros doctor"

@@ -10,6 +10,12 @@ Started here:
   - lidar_camera_depth: /dottorcane/agent/depth, a 32FC1 depth image aligned with
     the agent's camera from the Mid-360 points, for ros2_depth_distance and
     ros2_depth_corridor (the robot has no depth camera);
+  - lidar_nav_cloud: /dottorcane/agent/nav_cloud, the deskewed Mid-360 cloud reduced
+    to what the dua_nav2 costmaps use (obstacle band, 5 cm voxels, x y z), for Nav2
+    on a workstation over Wi-Fi, only with localization:=map; nav_cloud:=false
+    leaves it out;
+  - reactive_drive: the action /dottorcane/agent/reactive_drive (agenticros_msgs/ReactiveDrive),
+    the agent's control loop next to the sensors (it publishes cmd_vel only while a goal runs);
   - lidar_obstacle_scan: /dottorcane/agent/scan_obstacles, a 360 deg LaserScan of
     the Mid-360 points 10-70 cm above the floor, for Nav2 on a workstation
     (go2_real_nav.launch.py); obstacle_scan:=false leaves it out.
@@ -19,7 +25,7 @@ the TF tree; without a calibrated camera_info pass hfov_deg and camera_frame:
 
     ros2 launch go2_real go2_real.launch.py camera_frame:=dottorcane/usb_camera hfov_deg:=78
 
-Like the DottorCane launch files, the nodes use rmw_zenoh_cpp.
+Like the DottorCane launch files, the nodes use rmw_zenoh_cpp (rmw:= for local tests).
 """
 
 from launch import LaunchDescription
@@ -31,13 +37,19 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 CAMERA_INFO_TOPIC = '/dottorcane/go2_control/frontvideo/camera_info'
 LIDAR_TOPIC = '/dottorcane/sensors/livox_lidar_driver/point_cloud'
+DESKEWED_TOPIC = LIDAR_TOPIC + '/deskewed'
+NAV_CLOUD_TOPIC = '/dottorcane/agent/nav_cloud'
 DEPTH_TOPIC = '/dottorcane/agent/depth'
 SCAN_TOPIC = '/dottorcane/agent/scan_obstacles'
+CMD_VEL_TOPIC = '/dottorcane/go2_control/cmd_vel'
 
 
 def generate_launch_description():
     return LaunchDescription([
-        SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_zenoh_cpp'),
+        DeclareLaunchArgument(
+            'rmw', default_value='rmw_zenoh_cpp',
+            description='Middleware of the nodes (rmw_zenoh_cpp like the DottorCane stack)'),
+        SetEnvironmentVariable('RMW_IMPLEMENTATION', LaunchConfiguration('rmw')),
         DeclareLaunchArgument(
             'camera_info', default_value=CAMERA_INFO_TOPIC,
             description='CameraInfo of the camera the agent uses (unused with hfov_deg)'),
@@ -61,8 +73,20 @@ def generate_launch_description():
             'obstacle_scan', default_value='true',
             description='Also publish the obstacle LaserScan for Nav2'),
         DeclareLaunchArgument(
+            'nav_cloud', default_value='true',
+            description='Also publish the reduced cloud for the dua_nav2 costmaps (localization:=map only)'),
+        DeclareLaunchArgument(
             'base_height', default_value='0.34',
             description='Standing base height above the floor [m] (camera height - 0.04)'),
+        DeclareLaunchArgument(
+            'forward_efficiency', default_value='1.0',
+            description='Fraction of the commanded forward motion the base achieves (reactive_drive)'),
+        DeclareLaunchArgument(
+            'turn_efficiency', default_value='1.0',
+            description='Fraction of the commanded yaw the base achieves (reactive_drive)'),
+        DeclareLaunchArgument(
+            'reactive_drive', default_value='true',
+            description='Start the reactive_drive action (the agent drives through it, branch mapless)'),
         DeclareLaunchArgument(
             'cliff_check', default_value='true',
             description='Treat a missing floor ahead (stairs going down) as an obstacle in the scan'),
@@ -117,5 +141,41 @@ def generate_launch_description():
             remappings=[
                 ('points', LaunchConfiguration('points')),
                 ('scan', SCAN_TOPIC),
+            ]),
+        Node(
+            package='go2_real',
+            executable='lidar_nav_cloud.py',
+            name='lidar_nav_cloud',
+            namespace='dottorcane/agent',
+            output='screen',
+            emulate_tty=True,
+            # The band of the costmaps is in the map frame: no nav cloud without localization.
+            condition=IfCondition(PythonExpression([
+                "'", LaunchConfiguration('nav_cloud'), "' == 'true' and '",
+                LaunchConfiguration('localization'), "' == 'map'"])),
+            parameters=[{
+                'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
+                'odom_frame': 'map',
+            }],
+            remappings=[
+                ('points', DESKEWED_TOPIC),
+                ('cloud', NAV_CLOUD_TOPIC),
+            ]),
+        Node(
+            package='go2_real',
+            executable='reactive_drive.py',
+            name='reactive_drive',
+            namespace='dottorcane/agent',
+            output='screen',
+            emulate_tty=True,
+            condition=IfCondition(LaunchConfiguration('reactive_drive')),
+            parameters=[{
+                'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
+                'forward_efficiency': ParameterValue(LaunchConfiguration('forward_efficiency'), value_type=float),
+                'turn_efficiency': ParameterValue(LaunchConfiguration('turn_efficiency'), value_type=float),
+            }],
+            remappings=[
+                ('scan', SCAN_TOPIC),
+                ('cmd_vel', CMD_VEL_TOPIC),
             ]),
     ])

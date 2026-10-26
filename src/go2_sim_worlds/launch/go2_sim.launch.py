@@ -11,15 +11,16 @@ simulator:
   - sensors: Go2 front camera /dottorcane/go2_control/frontvideo/{image_rect_color,
     camera_info} (1280x720, HFOV 94.7 deg, frame dottorcane/front_camera_link),
     Livox Mid-360 /dottorcane/sensors/livox_lidar_driver/point_cloud (and
-    .../point_cloud/deskewed, the input of the DUA Nav2) at the pose of the real
+    .../point_cloud/deskewed, reduced for the DUA Nav2 by go2_real) at the pose of the real
     one (30 deg pitch), IMU /dottorcane/go2_control/imu; no depth camera;
   - localization:=none (default on branch mapless): no pose estimate at all, no
     map frame, like the DottorCane stack without EKF and SLAM; localization:=ekf:
     /dottorcane/slam/ekf_global/odometry and map -> dottorcane/base_link, with map
     at the start pose on the floor (the Gazebo pose stands in for EKF + LIO-SAM;
     the agent never reads /gz/dottorcane/pose);
-  - go2_real.launch.py: depth from the lidar (/dottorcane/agent/depth) and the
-    obstacle scan (/dottorcane/agent/scan_obstacles);
+  - go2_real.launch.py: depth from the lidar (/dottorcane/agent/depth), the
+    obstacle scan (/dottorcane/agent/scan_obstacles) and, with localization:=ekf,
+    the cloud of the DUA Nav2 costmaps (/dottorcane/agent/nav_cloud);
   - rmw_zenoh_cpp: start a router on this machine first (`zenohd`, port 7447),
     or pass zenoh_router:=true.
 Nav2 is the DUA one (dua_nav2 repo, dottorcane.launch.py use_sim_time:=true),
@@ -231,16 +232,18 @@ def launch_setup(context):
 
     actions = [LogInfo(msg=f"[go2_sim] world '{name}' ({profile} profile): {env['description']}")]
     if real:
-        # Like the DottorCane stack: rmw_zenoh_cpp. The router (one per host) is
-        # started before the simulation (zenohd), or here with zenoh_router:=true.
-        actions.append(SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_zenoh_cpp'))
+        # Like the DottorCane stack: rmw_zenoh_cpp by default (rmw:= for local tests on DDS). The
+        # zenoh router (one per host) is started before the simulation (zenohd), or here with
+        # zenoh_router:=true.
+        rmw = LaunchConfiguration('rmw').perform(context)
+        actions.append(SetEnvironmentVariable('RMW_IMPLEMENTATION', rmw))
         # The launch process itself loads the composable nodes into the container
         # (load_node service), with the middleware it was started with.
-        if os.environ.get('RMW_IMPLEMENTATION') != 'rmw_zenoh_cpp':
+        if os.environ.get('RMW_IMPLEMENTATION') != rmw:
             raise RuntimeError(
-                "profile:=real runs on rmw_zenoh_cpp like the robot: start the launch with "
-                "RMW_IMPLEMENTATION=rmw_zenoh_cpp (e.g. after `sim_zenoh`)")
-        if LaunchConfiguration('zenoh_router').perform(context).lower() == 'true':
+                f"profile:=real runs on {rmw}: start the launch with RMW_IMPLEMENTATION={rmw} "
+                "(e.g. after `sim_zenoh`), or pass rmw:= the middleware of this shell")
+        if rmw == 'rmw_zenoh_cpp' and LaunchConfiguration('zenoh_router').perform(context).lower() == 'true':
             actions.append(ExecuteProcess(
                 cmd=['ros2', 'run', 'rmw_zenoh_cpp', 'rmw_zenohd'], name='zenoh_router', output='log'))
 
@@ -447,6 +450,10 @@ def launch_setup(context):
                 get_package_share_directory('go2_real'), 'launch', 'go2_real.launch.py')),
             launch_arguments={
                 'use_sim_time': 'true',
+                'rmw': LaunchConfiguration('rmw').perform(context),
+                # CHAMP calibration (scripts/run_nebius_agent.sh, house simulation).
+                'forward_efficiency': '0.84',
+                'turn_efficiency': '0.77',
                 'base_height': str(SIM_BASE_HEIGHT),
                 'localization': 'map' if localization == 'ekf' else 'none',
             }.items()))
@@ -515,6 +522,10 @@ def generate_launch_description():
             'localization', default_value='none',
             description='profile:=real: none (no pose estimate, branch mapless) or ekf '
                         '(Gazebo pose as EKF + LIO-SAM, map frame at the start pose)'),
+        DeclareLaunchArgument(
+            'rmw', default_value='rmw_zenoh_cpp',
+            description='profile:=real: middleware of the simulated robot (rmw_zenoh_cpp like the '
+                        'DottorCane; rmw_fastrtps_cpp for local tests with ROS_DOMAIN_ID)'),
         DeclareLaunchArgument(
             'zenoh_router', default_value='false',
             description='profile:=real: also start a zenoh router (rmw_zenohd); '
