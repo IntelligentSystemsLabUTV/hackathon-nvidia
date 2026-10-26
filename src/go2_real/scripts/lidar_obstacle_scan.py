@@ -17,6 +17,13 @@ The Mid-360 is tilted 30 deg forward: behind the robot its rays point upward and
 never see the floor band. A direction without obstacles reads +inf (Nav2 clears
 it) only within +/- clear_half_angle_deg of the front; behind it reads NaN, so
 the costmaps keep what they marked there before.
+
+Drop-offs (stairs going down, a step) have no points in the obstacle band: with
+cliff_check:=true the floor patch ahead of the robot (cliff_near..cliff_far,
+within cliff_half_width) is checked as well, and when the lidar finds too few
+floor points there, or points well below the floor, the front reads as an
+obstacle at cliff_near. Off by default here: the costmaps of Nav2 take the scan,
+and a false drop-off (a black glossy floor that returns little) would block it.
 """
 
 import math
@@ -62,6 +69,17 @@ class LidarObstacleScan(Node):
         # Box around the robot in the body frame: points inside are the robot itself.
         self.body_box_min = np.array(p('body_box_min', [-0.45, -0.22, -0.45]).value)
         self.body_box_max = np.array(p('body_box_max', [0.45, 0.22, 0.25]).value)
+        # Drop-off check of the floor patch ahead (body frame, m). The tilted Mid-360 sees the
+        # floor from ~0.75 m ahead of the base: ~300 points per cloud there in simulation.
+        self.cliff_check = p('cliff_check', False).value
+        self.cliff_near = p('cliff_near', 0.6).value
+        self.cliff_far = p('cliff_far', 1.2).value
+        self.cliff_half_width = p('cliff_half_width', 0.3).value
+        self.cliff_min_points = int(p('cliff_min_points', 20).value)
+        # Floor points are within this of the floor; points this far below it are a drop.
+        self.floor_tolerance = p('floor_tolerance', 0.06).value
+        self.drop_height = p('drop_height', 0.12).value
+        self.floor_counts = []  # (stamp seconds, floor points, points below the floor) in the patch
 
         self.n_beams = int(round(2 * math.pi / self.angle_increment))
         angles = -math.pi + (np.arange(self.n_beams) + 0.5) * self.angle_increment
@@ -106,6 +124,12 @@ class LidarObstacleScan(Node):
         body = xyz @ body_from_lidar[:3, :3].T + body_from_lidar[:3, 3]
         on_robot = np.all((body >= self.body_box_min) & (body <= self.body_box_max), axis=1)
         above = body[:, 2] + self.base_height
+        if self.cliff_check:
+            patch = (~on_robot & (body[:, 0] >= self.cliff_near) & (body[:, 0] <= self.cliff_far)
+                     & (np.abs(body[:, 1]) <= self.cliff_half_width))
+            floor = int(np.sum(patch & (np.abs(above) <= self.floor_tolerance)))
+            below = int(np.sum(patch & (above <= -self.drop_height)))
+            self.floor_counts.append((stamp.nanoseconds * 1e-9, floor, below))
         body = body[~on_robot & (above >= self.min_height) & (above <= self.max_height)]
         odom = body @ odom_from_body[:3, :3].T + odom_from_body[:3, 3]
 
@@ -114,7 +138,19 @@ class LidarObstacleScan(Node):
         self.clouds = [(s, c) for s, c in self.clouds if now - s <= self.window]
         body_from_odom = np.linalg.inv(odom_from_body)
         pts = np.concatenate([c for _, c in self.clouds])
-        self.publish(msg.header.stamp, pts @ body_from_odom[:3, :3].T + body_from_odom[:3, 3])
+        pts = pts @ body_from_odom[:3, :3].T + body_from_odom[:3, 3]
+        if self.cliff_check:
+            self.floor_counts = [c for c in self.floor_counts if now - c[0] <= self.window]
+            floor = sum(c[1] for c in self.floor_counts)
+            below = sum(c[2] for c in self.floor_counts)
+            if floor < self.cliff_min_points or below >= self.cliff_min_points:
+                self.get_logger().warning(
+                    f'no floor ahead ({floor} floor points, {below} below it, {self.cliff_near}-{self.cliff_far} m): '
+                    'drop-off, the front reads as an obstacle', throttle_duration_sec=5.0)
+                ys = np.linspace(-self.cliff_half_width, self.cliff_half_width, 13)
+                wall = np.stack([np.full_like(ys, self.cliff_near), ys, np.zeros_like(ys)], axis=1)
+                pts = np.concatenate([pts, wall])
+        self.publish(msg.header.stamp, pts)
 
     def publish(self, stamp, pts):
         ranges = np.full(self.n_beams, np.inf, dtype=np.float32)

@@ -11,13 +11,14 @@ simulator:
   - sensors: Go2 front camera /dottorcane/go2_control/frontvideo/{image_rect_color,
     camera_info} (1280x720, HFOV 94.7 deg, frame dottorcane/front_camera_link),
     Livox Mid-360 /dottorcane/sensors/livox_lidar_driver/point_cloud (and
-    .../point_cloud/deskewed, the input of the DUA Nav2) at the pose of the real
+    .../point_cloud/deskewed, reduced for the DUA Nav2 by go2_real) at the pose of the real
     one (30 deg pitch), IMU /dottorcane/go2_control/imu; no depth camera;
   - localization: /dottorcane/slam/ekf_global/odometry and map -> dottorcane/base_link,
     with map at the start pose on the floor (the Gazebo pose stands in for EKF +
     LIO-SAM; the agent never reads /gz/dottorcane/pose);
-  - go2_real.launch.py: depth from the lidar (/dottorcane/agent/depth) and the
-    obstacle scan (/dottorcane/agent/scan_obstacles);
+  - go2_real.launch.py: depth from the lidar (/dottorcane/agent/depth), the
+    obstacle scan (/dottorcane/agent/scan_obstacles) and the cloud of the DUA Nav2
+    costmaps (/dottorcane/agent/nav_cloud);
   - rmw_zenoh_cpp: start a router on this machine first (`zenohd`, port 7447),
     or pass zenoh_router:=true.
 Nav2 is the DUA one (dua_nav2 repo, dottorcane.launch.py use_sim_time:=true),

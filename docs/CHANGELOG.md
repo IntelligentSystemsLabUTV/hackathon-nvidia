@@ -2,6 +2,41 @@
 
 Modifiche all'agente Nebius e alla simulazione, dalla più recente.
 
+## 26 ottobre 2026: fix del branch `mapless` portati su master, prove per la demo
+
+### In breve
+
+- **Ripiego del modello di ragionamento**: ogni decisione ha 10 s (`NEBIUS_DECISION_TIMEOUT_S`) e nessun retry, l'interpretazione della richiesta 30 s. Se il modello primario fallisce, la stessa chiamata riparte su `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` con `enable_thinking: false` (`NEBIUS_FALLBACK_REASONING_MODEL`, vuoto per disattivarlo), che serve anche le 5 chiamate successive.
+- **Ripiego del modello vision** (nuovo): Kimi-K2.6 ha risposto `529 System is overloaded` due volte di fila e la richiesta "cosa vedi?" è finita con un errore. Ora la chiamata riparte su `nvidia/Nemotron-3.5-Super-VL` (`NEBIUS_FALLBACK_VISION_MODEL`), che serve le 5 successive; vale solo per un modello con la stessa grounding del primario. Il profilo di Nemotron-3.5-Super-VL (box su griglia 0–1000, `enable_thinking: false`, ~1 s) è in `vision.ts`.
+- **Controllo all'avvio**: senza messaggi sulla profondità (`NEBIUS_DEPTH_TOPIC`) l'agente non parte e lo dice ("Sensori non disponibili ... avvia go2_real.launch.py"), senza chiamate a Nebius.
+- **`ros2_estop` interrompe anche un `ros2_move_for` in corso**: prima il comando continuava fino alla sua scadenza, fino a 3 s.
+- **Ctrl-C**: l'agente stampava `estop failed: MCP error -32000: Connection closed`, perché il server MCP riceve lo stesso segnale, ferma il robot e annulla i goal Nav2 da solo, poi chiude la connessione. Ora stampa `robot stopped by the MCP server on the same signal`.
+- **Dislivelli** (`lidar_obstacle_scan.py`, `cliff_check`), portato dal branch mapless ma **spento di default su master**: lo scan va nelle costmap di Nav2, e un falso dislivello su un pavimento scuro (non ancora provato sul reale) bloccherebbe le navigazioni. `go2_real.launch.py cliff_check:=true` per attivarlo.
+- **dua_nav2** (`dottorcane.yaml`, modifica locale): la costmap globale è una finestra mobile centrata sul robot; con 20×20 m un posto salvato a 11 m ("vai in cucina" dalla camera da letto) veniva rifiutato in 0,05 s con `Goal Coordinates ... was outside bounds`. Ora è di 40×40 m (0,2 m/cella).
+- **Nuvola per Nav2 in Wi‑Fi** (nuovo, `lidar_nav_cloud.py` in `go2_real.launch.py`, `nav_cloud:=false` per toglierlo): le costmap di dua_nav2 prendevano la nuvola deskewed completa del Mid-360, ~200k punti/s da 32 byte (x, y, z, intensity, tag, ring, timestamp), ~6,4 MB/s. Nav2 sul PC è client zenoh del router della Jetson e le due costmap stanno in due processi, quindi in Wi‑Fi la nuvola passava due volte (~100 Mbit/s), sullo stesso collegamento del `cmd_vel` di Nav2 (watchdog di `go2_control` a 500 ms). Il nodo, sulla Jetson, ripubblica in `/dottorcane/agent/nav_cloud` solo i punti nella fascia degli ostacoli delle costmap (0,1–1,0 m di z nel frame `map`, come le filtra Nav2), un punto per voxel di 5 cm, solo x y z, nel frame e con lo stamp della nuvola originale. `dua_nav2/.../dottorcane.yaml` ora legge quel topic (modifica locale, il topic originale è nel commento). In sim: 4,02 MB/s → 0,20 MB/s a 10 Hz (11520 → ~1200 punti per nuvola); costmap a pari posa uguali (globale: ignoto 1480,3 contro 1482,0 m², occupato 15,6 contro 14,9 m²; locale: libero 30,0 contro 30,1 m², occupato 11,2 contro 11,4 m²).
+
+Non portati, perché sono solo del branch mapless: waypoint semantici, `ros2_drive_toward`, l'action `ReactiveDrive`, l'esplorazione dalla vista corrente. Il fix del bersaglio visto da vicino (`closeFirstSighting` con due controlli sul ritaglio) era già su master.
+
+### Prove in simulazione (casa, `profile:=real`, Nav2 DUA, zenoh con router su loopback)
+
+| Prova | Esito |
+| --- | --- |
+| `ros2_navigate_to_pose` 2,5 m (tool MCP) | `succeeded` in 5,5 s |
+| `ros2_estop` durante un goal Nav2 | goal `canceled` in 12 ms; il robot scivola ancora 0,54 m (rampa di velocità di CHAMP da ~1 m/s, artefatto della sim) |
+| `ros2_estop` durante `ros2_move_for` 3 s a 0,25 m/s | fermo dopo 0,18 m (prima ~0,6 m) |
+| controllo all'avvio con profondità assente | messaggio, nessun movimento, nessuna chiamata a Nebius |
+| modello di ragionamento inesistente | 404, risposta di Nano in 1,2 s |
+| modello vision inesistente | 404, descrizione di Nemotron-3.5-Super-VL in 1,1 s |
+| "vai vicino al frigorifero" (policy `auto`, poi Nemotron) | 5–8 passi, un goal Nav2 da ~7 m, arrivo a 1,0–1,2 m |
+| "vai vicino alla sedia" (Nemotron, decisioni in 0,3–0,4 s) | 8 passi, arrivo a 0,81 m |
+| "vai vicino al letto" (altra stanza, frontiere) | 16–18 passi, arrivo a 0,5–1,1 m |
+| "ricorda questo posto come cucina", "torna dal frigorifero", "torna in cucina" | salvato; goal Nav2 da 7–27 s, arrivo a ~3 cm dalla posa salvata |
+| Ctrl-C (SIGINT al gruppo di processi, come il terminale) durante "torna a partenza" con Nav2 | fermo: 0,25 m di frenata in 1,5 s, poi fermo; il goal Nav2 annullato dall'estop del server MCP |
+| "ruota a destra di 90 gradi e poi avanza di un metro" | 88°, 0,95 m |
+| 3 goal di `explore` (tool MCP) e "vai vicino al frigorifero" con `nav_cloud` | `succeeded`; frigorifero in 5 passi, goal Nav2 da 6,9 m, arrivo a 1,04 m |
+
+Una corsa verso il letto si è chiusa con "robot bloccato": la frontiera portava verso il balcone e il robot è finito contro la porta a soffietto `FoldingDoor_02`, dove Gazebo è sceso a RTF 0,007 (la fisica si è fermata, come nell'incastro in palestra già noto). L'agente ha riconosciuto la rotazione bloccata dall'IMU, ha fatto i 5 tentativi di sblocco e si è fermato; la richiesta successiva è stata rifiutata dal controllo all'avvio. Rifatta da una sim nuova, è arrivata a 1,08 m.
+
 ## 21 ottobre 2026: navigazione con Nav2 sul Go2 reale e simulazione uguale al robot
 
 Durante le prove sul Go2 l'agente non usava mai Nav2: si muoveva solo con `cmd_vel`. Le cause, i fix e il nuovo modo di navigare, tutti provati nella simulazione con il Nav2 DUA come sul robot.
