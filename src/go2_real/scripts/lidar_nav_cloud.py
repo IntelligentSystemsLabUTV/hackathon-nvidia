@@ -9,6 +9,9 @@ global costmaps live in two processes, so over Wi-Fi the cloud would cross twice
 500 ms watchdog).
 
 This node runs on the Jetson and republishes only what the costmaps use:
+  - not the robot itself: the Mid-360 sees the Go2's head and legs, and those points,
+    partly outside the footprint of the costmaps, put the robot inside a lethal
+    obstacle (the Nav2 spin and drive_on_heading aborted at once on the robot);
   - the points within the obstacle band of the costmaps (min_height..max_height,
     z in the odom frame, as Nav2 filters them: in the global frame `map`);
   - one point per voxel (voxel m), the original point, not a centroid;
@@ -46,6 +49,10 @@ class LidarNavCloud(Node):
         super().__init__('lidar_nav_cloud')
         p = self.declare_parameter
         self.odom_frame = p('odom_frame', 'map').value
+        self.body_frame = p('body_frame', 'dottorcane/base_link').value
+        # Box around the robot in the body frame: points inside are the robot (as in lidar_obstacle_scan).
+        self.body_box_min = np.array(p('body_box_min', [-0.45, -0.22, -0.45]).value)
+        self.body_box_max = np.array(p('body_box_max', [0.45, 0.22, 0.25]).value)
         # Obstacle band of the dua_nav2 costmaps (min/max_obstacle_height, global frame).
         self.min_height = p('min_height', 0.1).value
         self.max_height = p('max_height', 1.0).value
@@ -78,12 +85,16 @@ class LidarNavCloud(Node):
         return None
 
     def on_cloud(self, msg: PointCloud2):
-        odom_from_lidar = self.lookup(self.odom_frame, msg.header.frame_id, Time.from_msg(msg.header.stamp))
-        if odom_from_lidar is None:
+        stamp = Time.from_msg(msg.header.stamp)
+        odom_from_lidar = self.lookup(self.odom_frame, msg.header.frame_id, stamp)
+        body_from_lidar = self.lookup(self.body_frame, msg.header.frame_id, stamp)
+        if odom_from_lidar is None or body_from_lidar is None:
             return
         xyz = point_cloud2.read_points_numpy(msg, field_names=('x', 'y', 'z'), skip_nans=True)
         xyz = np.asarray(xyz, dtype=np.float32).reshape(-1, 3)
         xyz = xyz[np.isfinite(xyz).all(axis=1)]
+        body = xyz.astype(np.float64) @ body_from_lidar[:3, :3].T + body_from_lidar[:3, 3]
+        xyz = xyz[~np.all((body >= self.body_box_min) & (body <= self.body_box_max), axis=1)]
         odom = xyz.astype(np.float64) @ odom_from_lidar[:3, :3].T + odom_from_lidar[:3, 3]
         band = (odom[:, 2] >= self.min_height) & (odom[:, 2] <= self.max_height)
         xyz, odom = xyz[band], odom[band]
