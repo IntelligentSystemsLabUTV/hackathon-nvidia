@@ -63,6 +63,10 @@ case "${target}" in
     # target reached), in the map frame of EKF + LIO-SAM. That frame restarts with the
     # DottorCane stack: delete the file then (the simulation, profile:=real, clears it at start).
     export NEBIUS_SESSION_PLACES="${NEBIUS_SESSION_PLACES:-on}"
+    # Every motion as a Nav2 behavior of the DUA Nav2 (spin, drive_on_heading, backup): closed
+    # loop on the LIO-SAM pose and checked against the costmap, never a cmd_vel from the agent.
+    # Without Nav2 the agent refuses to move; NEBIUS_NAV2_MOTION=off: timed ros2_move_for motions.
+    export NEBIUS_NAV2_MOTION="${NEBIUS_NAV2_MOTION:-on}"
     export AGENTICROS_PLACES_PATH="${AGENTICROS_PLACES_PATH:-${workspace_dir}/logs/places_session.json}"
     if [[ "${target}" == "real" ]]; then
       # Estimate for the standing Go2 (head camera ~4 cm above the base): measure it.
