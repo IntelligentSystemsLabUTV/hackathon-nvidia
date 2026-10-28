@@ -143,13 +143,15 @@ Measured in the Gazebo simulation, which has the same sensors, topics, frames an
 | [`src/dottorcane_description/`](src/dottorcane_description), [`src/go2_description/`](src/go2_description), [`src/champ*`](src/champ_base) | Robot model and CHAMP locomotion controller used by the simulation |
 | [`config/`](config) | AgenticROS config (camera, velocity limits, skills) and the Nav2 skill declaration |
 | [`scripts/run_nebius_agent.sh`](scripts/run_nebius_agent.sh) | Starts the agent with the defaults for `GO2_TARGET=sim` (default) or `real` |
-| [`docker/`](docker) | Development containers: `container-x86-cudev` (workstation with NVIDIA GPU) and `container-jetson6` (Jetson Orin on the Go2) |
+| [`docker/`](docker) | Development containers: `container-x86-cudev` (workstation with NVIDIA GPU), `container-x86-dev` (workstation without one) and `container-jetson6` (Jetson Orin on the Go2) |
 
 The workspace follows the layout of [DUA](https://github.com/dotX-Automation/dua-foundation) (Distributed Unified Architecture): ROS 2 Jazzy in Docker containers, one per target.
 
 ## Quick start (simulation)
 
 **You need** a Linux host with an NVIDIA GPU, Docker with the NVIDIA container runtime, and a [Nebius Token Factory](https://tokenfactory.nebius.com/) API key.
+
+Without an NVIDIA GPU, use `docker/container-x86-dev` instead of `docker/container-x86-cudev` (container `devcontainer-hackathon-nvidia-x86-dev-1`): same tools, with Gazebo rendering the cameras in software, so the simulation runs slower.
 
 ```bash
 # on the host
