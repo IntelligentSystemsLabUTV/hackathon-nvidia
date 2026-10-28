@@ -273,6 +273,9 @@ This repository was created on 23 September 2026, after the submission period op
 
 **Intelligent Systems Lab, University of Rome “Tor Vergata”.**
 
+- **Leonardo Galgano** ([@ilGalghi](https://github.com/ilGalghi))
+- **Alexandru Cretu** ([@ErLex20](https://github.com/ErLex20))
+
 Built on [AgenticROS](https://github.com/agenticros/agenticros) (Apache-2.0); the locomotion is [CHAMP](https://github.com/chvmp/champ) (BSD-3-Clause) with Unitree Go2 meshes; the house is the [AWS RoboMaker Small House World](https://github.com/aws-robotics/aws-robomaker-small-house-world); the containers follow [DUA](https://github.com/dotX-Automation/dua-foundation).
 
 ## License
