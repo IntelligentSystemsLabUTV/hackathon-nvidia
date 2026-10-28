@@ -31,7 +31,7 @@ services:
       TERM: xterm-256color
       DISPLAY:
       SHELL: /usr/bin/zsh
-      AGENTICROS_CONFIG_PATH: /home/neo/workspace/config/agenticros.real.json
+      AGENTICROS_CONFIG_PATH: /home/neo/workspace/config/agenticros.json
       GO2_TARGET: real
     user: neo
     group_add:

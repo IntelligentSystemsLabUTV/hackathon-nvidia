@@ -6,19 +6,19 @@
     "domainId": 0
   },
   "robot": {
-    "name": "hackathon-nvidia",
+    "name": "dottorcane",
     "namespace": "",
-    "cameraTopic": "/dottorcane/slam/zed_x_driver/left/image_rect_color"
+    "cameraTopic": "/dottorcane/go2_control/frontvideo/image_rect_color"
   },
   "teleop": {
     "cmdVelTopic": "/dottorcane/go2_control/cmd_vel",
     "speedDefault": 0.15
   },
   "safety": {
-    "maxLinearVelocity": 0.25,
-    "maxAngularVelocity": 0.5
+    "maxLinearVelocity": 1.0,
+    "maxAngularVelocity": 1.0
   },
   "skillPaths": [
-    "agenticros-skills/go2-nav2"
+    "agenticros-skills/go2-nav2-dua"
   ]
 }

@@ -65,7 +65,7 @@ dottorcane_zenoh() {
   export ZENOH_CONFIG_OVERRIDE="mode=\"client\";connect/endpoints=[\"tcp/$1:7447\"];scouting/multicast/enabled=false"
 }
 
-# ROS 2 CLI on the real-like simulation (go2_sim.launch.py profile:=real) of this
+# ROS 2 CLI on the real-like simulation (go2_sim.launch.py) of this
 # machine: rmw_zenoh_cpp through the local router (start it once with `zenohd`).
 sim_zenoh() {
   export RMW_IMPLEMENTATION=rmw_zenoh_cpp

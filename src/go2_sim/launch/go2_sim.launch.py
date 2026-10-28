@@ -1,43 +1,24 @@
-"""Go2 (DottorCane) simulation in a selectable Gazebo environment.
+"""Go2 (DottorCane) simulation in Gazebo Harmonic that looks like the real robot.
 
-    ros2 launch go2_sim_worlds go2_sim.launch.py world:=house
-    ros2 launch go2_sim_worlds go2_sim.launch.py world:=ldc25 gui:=false
-    ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=map
-    ros2 launch go2_sim_worlds go2_sim.launch.py world:=house nav:=slam profile:=zed
+    ros2 launch go2_sim go2_sim.launch.py world:=house gui:=false
 
-profile:=real (default) makes the simulated robot look like the real DottorCane
-(dottorcane repo, branch slam, plus go2_real.launch.py) to everything above the
-simulator:
+The simulated robot looks like the real DottorCane (dottorcane repo, branch slam,
+plus go2_real.launch.py) to everything above the simulator:
   - sensors: Go2 front camera /dottorcane/go2_control/frontvideo/{image_rect_color,
     camera_info} (1280x720, HFOV 94.7 deg, frame dottorcane/front_camera_link),
     Livox Mid-360 /dottorcane/sensors/livox_lidar_driver/point_cloud (and
-    .../point_cloud/deskewed, reduced for the DUA Nav2 by go2_real) at the pose of the real
-    one (30 deg pitch), IMU /dottorcane/go2_control/imu; no depth camera;
+    .../point_cloud/deskewed, reduced for the Nav2 costmaps by go2_real) at the pose of the
+    real one (30 deg pitch), IMU /dottorcane/go2_control/imu; no depth camera;
   - localization: /dottorcane/slam/ekf_global/odometry and map -> dottorcane/base_link,
     with map at the start pose on the floor (the Gazebo pose stands in for EKF +
     LIO-SAM; the agent never reads /gz/dottorcane/pose);
   - go2_real.launch.py: depth from the lidar (/dottorcane/agent/depth), the
-    obstacle scan (/dottorcane/agent/scan_obstacles) and the cloud of the DUA Nav2
+    obstacle scan (/dottorcane/agent/scan_obstacles) and the cloud of the Nav2
     costmaps (/dottorcane/agent/nav_cloud);
   - rmw_zenoh_cpp: start a router on this machine first (`zenohd`, port 7447),
     or pass zenoh_router:=true.
-Nav2 is the DUA one (dua_nav2 repo, dottorcane.launch.py use_sim_time:=true),
-explore comes from go2_real_nav.launch.py nav2:=dua use_sim_time:=true: the same
-steps as on the robot. Only nav:=none is available with this profile.
-
-profile:=zed is the previous simulation (ZED X cameras and depth, ros_gz_republish,
-nav:=map|slam with the Nav2 of this package); the rest of this text refers to it.
-
-Environments are listed in config/environments.yaml. The robot stack (CHAMP,
-ZED cameras, bridge, ros_gz_republish) and the ROS topics are the same in
-every world, so AgenticROS works without changes. Based on
-ldc25-sim/launch/ldc25_dottorcane.launch.py.
-
-nav:=map also starts Nav2 on the world map, nav:=slam Nav2 on a map built live
-by slam_toolbox, with frontier exploration (launch/go2_nav.launch.py). The
-odometry then comes from ground_truth_odom (odom = Gazebo world frame) and AMCL
-or SLAM publishes map -> odom, so the static map -> odom transform and the TF of
-ros_gz_republish are left out.
+Nav2 and explore run as on the robot (go2_real_nav.launch.py use_sim_time:=true).
+Environments are listed in config/environments.yaml; the locomotion is CHAMP.
 """
 
 import math
@@ -63,12 +44,9 @@ from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterFile
 
-PACKAGE = 'go2_sim_worlds'
-# Height of dottorcane/odom above the ground, as in the LDC25 launch.
-ODOM_Z = 0.22
-CAMERA_TOPIC = '/dottorcane/slam/zed_x_driver/left/image_rect_color'
+PACKAGE = 'go2_sim'
 
-# profile:=real: sensors and frames of the real DottorCane (dottorcane_slam.urdf).
+# Sensors and frames of the real DottorCane (dottorcane_slam.urdf).
 REAL_CAMERA_TOPIC = '/dottorcane/go2_control/frontvideo/image_rect_color'
 REAL_CAMERA_FRAME = 'dottorcane/front_camera_link'
 REAL_LIDAR_FRAME = 'dottorcane/livox_mid360_link'
@@ -80,7 +58,7 @@ REAL_CAMERA_OPTICAL_RPY = (-math.pi / 2.0, 0.0, -math.pi / 2.0)
 REAL_CAMERA_HFOV_DEG = 94.7
 # Standing base height of the simulated Go2 (CHAMP), lower than the real one (0.34 m).
 SIM_BASE_HEIGHT = 0.22
-# Sensors of the ZED/legacy model that the real robot does not have.
+# Sensors of the DottorCane model (ZED X) that the real robot does not have.
 ZED_SENSORS = ('left_camera', 'right_camera', 'zedx_depth', 'zedx_imu',
                'zedx_left_camera', 'zedx_right_camera')
 
@@ -107,8 +85,8 @@ def pose_text(xyz, rpy):
     return ' '.join(f'{v:.6f}' for v in (*xyz, *rpy))
 
 
-def real_profile_sdf(src):
-    """Copy of the DottorCane SDF with the sensors of the real robot (profile:=real)."""
+def real_robot_sdf(src):
+    """Copy of the DottorCane SDF with the sensors of the real robot."""
     import tempfile
     import xml.etree.ElementTree as ET
 
@@ -208,37 +186,22 @@ def launch_setup(context):
 
     x, y, z, yaw = (spawn_value(k) for k in ('x', 'y', 'z', 'yaw'))
 
-    nav = LaunchConfiguration('nav').perform(context)
-    if nav not in ('none', 'map', 'slam'):
-        raise RuntimeError(f"Unknown nav mode '{nav}'. Available: none, map, slam")
-    profile = LaunchConfiguration('profile').perform(context)
-    if profile not in ('real', 'zed'):
-        raise RuntimeError(f"Unknown profile '{profile}'. Available: real, zed")
-    real = profile == 'real'
-    if real and nav != 'none':
-        raise RuntimeError(
-            "profile:=real uses the DUA Nav2 (dua_nav2: dottorcane.launch.py use_sim_time:=true) "
-            "as on the robot: nav:=map|slam needs profile:=zed")
-    if nav == 'map' and 'map' not in env:
-        raise RuntimeError(f"World '{name}' has no map: nav:=map is not available")
-
     world_path = os.path.join(
         get_package_share_directory(env['package']), env['world'])
 
-    actions = [LogInfo(msg=f"[go2_sim] world '{name}' ({profile} profile): {env['description']}")]
-    if real:
-        # Like the DottorCane stack: rmw_zenoh_cpp. The router (one per host) is
-        # started before the simulation (zenohd), or here with zenoh_router:=true.
-        actions.append(SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_zenoh_cpp'))
-        # The launch process itself loads the composable nodes into the container
-        # (load_node service), with the middleware it was started with.
-        if os.environ.get('RMW_IMPLEMENTATION') != 'rmw_zenoh_cpp':
-            raise RuntimeError(
-                "profile:=real runs on rmw_zenoh_cpp like the robot: start the launch with "
-                "RMW_IMPLEMENTATION=rmw_zenoh_cpp (e.g. after `sim_zenoh`)")
-        if LaunchConfiguration('zenoh_router').perform(context).lower() == 'true':
-            actions.append(ExecuteProcess(
-                cmd=['ros2', 'run', 'rmw_zenoh_cpp', 'rmw_zenohd'], name='zenoh_router', output='log'))
+    actions = [LogInfo(msg=f"[go2_sim] world '{name}': {env['description']}")]
+    # Like the DottorCane stack: rmw_zenoh_cpp. The router (one per host) is
+    # started before the simulation (zenohd), or here with zenoh_router:=true.
+    actions.append(SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_zenoh_cpp'))
+    # The launch process itself loads the composable nodes into the container
+    # (load_node service), with the middleware it was started with.
+    if os.environ.get('RMW_IMPLEMENTATION') != 'rmw_zenoh_cpp':
+        raise RuntimeError(
+            "the simulation runs on rmw_zenoh_cpp like the robot: start the launch with "
+            "RMW_IMPLEMENTATION=rmw_zenoh_cpp (e.g. after `sim_zenoh`)")
+    if LaunchConfiguration('zenoh_router').perform(context).lower() == 'true':
+        actions.append(ExecuteProcess(
+            cmd=['ros2', 'run', 'rmw_zenoh_cpp', 'rmw_zenohd'], name='zenoh_router', output='log'))
 
     # Gazebo model directories of this environment
     assets_path = LaunchConfiguration('assets_path').perform(context)
@@ -258,11 +221,9 @@ def launch_setup(context):
     pkg_dottorcane_description = get_package_share_directory(
         'dottorcane_description')
     pkg_go2_description = get_package_share_directory('go2_description')
-    pkg_zed_description = get_package_share_directory('zed_description')
     for resource_root in (
             os.path.dirname(pkg_dottorcane_description),
-            os.path.dirname(pkg_go2_description),
-            os.path.join(pkg_zed_description, 'models')):
+            os.path.dirname(pkg_go2_description)):
         actions.append(
             AppendEnvironmentVariable('GZ_SIM_RESOURCE_PATH', resource_root))
 
@@ -285,17 +246,13 @@ def launch_setup(context):
 
     urdf_file_dottorcane = os.path.join(
         pkg_dottorcane_description, 'urdf', 'dottorcane.urdf')
-    sdf_file_dottorcane = os.path.join(
-        pkg_dottorcane_description, 'urdf', 'model.sdf')
-    if real:
-        sdf_file_dottorcane = real_profile_sdf(sdf_file_dottorcane)
+    sdf_file_dottorcane = real_robot_sdf(os.path.join(
+        pkg_dottorcane_description, 'urdf', 'model.sdf'))
     with open(urdf_file_dottorcane, 'r') as infp:
         robot_desc_dottorcane = infp.read()
 
     ros_gz_bridge_config = os.path.join(
-        get_package_share_directory(PACKAGE), 'config',
-        'go2_bridge_real.yaml' if real else 'go2_bridge.yaml')
-    camera_topic = REAL_CAMERA_TOPIC if real else CAMERA_TOPIC
+        get_package_share_directory(PACKAGE), 'config', 'go2_bridge.yaml')
 
     actions.append(ComposableNodeContainer(
         name='container',
@@ -316,13 +273,13 @@ def launch_setup(context):
                     'config_file': ros_gz_bridge_config,
                     'qos_overrides./tf_static.publisher.durability': 'transient_local',
                 }]),
-            # JPEG copy of the ZED left camera for viewers (rqt_image_view):
-            # the raw 1920x1080 frames are ~6 MB each and too heavy to display
-            # live. Agents keep using the raw topic at full quality.
+            # JPEG copy of the front camera for viewers (rqt_image_view): the
+            # raw frames are too heavy to display live. Agents keep using the
+            # raw topic at full quality.
             ComposableNode(
                 package='image_transport',
                 plugin='image_transport::Republisher',
-                name='zed_left_compressed_republisher',
+                name='front_camera_compressed_republisher',
                 parameters=[{
                     'use_sim_time': True,
                     'in_transport': 'raw',
@@ -330,8 +287,8 @@ def launch_setup(context):
                     'out.compressed.jpeg_quality': 80,
                 }],
                 remappings=[
-                    ('in', camera_topic),
-                    ('out/compressed', camera_topic + '/compressed'),
+                    ('in', REAL_CAMERA_TOPIC),
+                    ('out/compressed', REAL_CAMERA_TOPIC + '/compressed'),
                 ]),
             # Robot State Publisher for DottorCane
             ComposableNode(
@@ -345,32 +302,12 @@ def launch_setup(context):
                     {'frame_prefix': 'dottorcane/'},
                 ],
                 remappings=[('/joint_states', '/dottorcane/joint_states')]),
-        ] + ([
             # Sensor frames of the real robot, missing from the simulation URDF.
             static_tf('livox_mid360_tf', 'dottorcane/base_link', REAL_LIDAR_FRAME,
                       REAL_LIDAR_POSE[0], REAL_LIDAR_POSE[1]),
             static_tf('front_camera_tf', 'dottorcane/base_link', REAL_CAMERA_FRAME,
                       REAL_CAMERA_POSE[0], REAL_CAMERA_OPTICAL_RPY),
-        ] if real else [] if nav != 'none' else [
-            # Static transform: map -> dottorcane/odom at the spawn pose
-            # (with nav:=map|slam, AMCL or SLAM publishes it).
-            ComposableNode(
-                package='tf2_ros',
-                plugin='tf2_ros::StaticTransformBroadcasterNode',
-                name='map_to_dottorcane_odom_broadcaster',
-                parameters=[{
-                    'frame_id': 'map',
-                    'child_frame_id': 'dottorcane/odom',
-                    'translation.x': x,
-                    'translation.y': y,
-                    'translation.z': ODOM_Z,
-                    'rotation.x': 0.0,
-                    'rotation.y': 0.0,
-                    'rotation.z': math.sin(yaw / 2.0),
-                    'rotation.w': math.cos(yaw / 2.0),
-                    'use_sim_time': True,
-                }]),
-        ])))
+        ]))
 
     # CHAMP locomotion controller
     champ_dir = get_package_share_directory('champ_config')
@@ -411,77 +348,45 @@ def launch_setup(context):
         ],
         output='screen'))
 
-    if real:
-        # The map frame below starts here: places saved by the agent in a previous run
-        # (scripts/run_nebius_agent.sh, logs/places_session.json) no longer hold.
-        places = Path(get_package_share_directory(PACKAGE)).parents[3] / 'logs' / 'places_session.json'
-        if places.exists():
-            places.unlink()
-            actions.append(LogInfo(msg=f'[go2_sim] removed the places of the previous session ({places})'))
-        # Stand-in for EKF + LIO-SAM: /dottorcane/slam/ekf_global/odometry and
-        # map -> dottorcane/base_link, map at the start pose on the floor.
-        actions.append(Node(
-            package=PACKAGE,
-            executable='ground_truth_odom.py',
-            name='ekf_global',
-            namespace='dottorcane/slam',
-            output='screen',
-            parameters=[{
-                'use_sim_time': True,
-                'odom_frame': 'map',
-                'publish_ground': False,
-                'origin_x': x,
-                'origin_y': y,
-                'origin_z': 0.0,
-                'origin_yaw': yaw,
-            }],
-            remappings=[('pose', '/gz/dottorcane/pose'), ('odom', 'ekf_global/odometry')]))
-        # Lidar depth and obstacle scan, as on the Jetson.
-        actions.append(IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(
-                get_package_share_directory('go2_real'), 'launch', 'go2_real.launch.py')),
-            launch_arguments={
-                'use_sim_time': 'true',
-                'base_height': str(SIM_BASE_HEIGHT),
-            }.items()))
-        return actions
-
-    # Gazebo -> ROS 2 republisher
+    # The map frame below starts here: places saved by the agent in a previous run
+    # (scripts/run_nebius_agent.sh, logs/places_session.json) no longer hold.
+    places = Path(get_package_share_directory(PACKAGE)).parents[3] / 'logs' / 'places_session.json'
+    if places.exists():
+        places.unlink()
+        actions.append(LogInfo(msg=f'[go2_sim] removed the places of the previous session ({places})'))
+    # Stand-in for EKF + LIO-SAM: /dottorcane/slam/ekf_global/odometry and
+    # map -> dottorcane/base_link, map at the start pose on the floor.
     actions.append(Node(
-        package='ros_gz_republish',
-        executable='ros_gz_republish',
-        name='ros_gz_republish',
-        namespace='',
-        emulate_tty=True,
-        shell=False,
-        output='both',
-        log_cmd=True,
-        parameters=[os.path.join(
-            get_package_share_directory('ros_gz_republish'),
-            'config', 'ros_gz_republish.yaml')] + (
-            # Nav2 takes odom -> base_link from ground_truth_odom instead.
-            [{'publishers.pose.tf.publish': [False]}] if nav != 'none' else [])))
-
-    if nav != 'none':
-        actions.append(IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(
-                get_package_share_directory(PACKAGE), 'launch', 'go2_nav.launch.py')),
-            launch_arguments={
-                'mode': nav,
-                'map': os.path.join(get_package_share_directory(PACKAGE), env['map'])
-                if nav == 'map' else '',
-                'x': str(x),
-                'y': str(y),
-                'yaw': str(yaw),
-            }.items()))
-
+        package=PACKAGE,
+        executable='ground_truth_odom.py',
+        name='ekf_global',
+        namespace='dottorcane/slam',
+        output='screen',
+        parameters=[{
+            'use_sim_time': True,
+            'odom_frame': 'map',
+            'publish_ground': False,
+            'origin_x': x,
+            'origin_y': y,
+            'origin_z': 0.0,
+            'origin_yaw': yaw,
+        }],
+        remappings=[('pose', '/gz/dottorcane/pose'), ('odom', 'ekf_global/odometry')]))
+    # Lidar depth and obstacle scan, as on the Jetson.
+    actions.append(IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(
+            get_package_share_directory('go2_real'), 'launch', 'go2_real.launch.py')),
+        launch_arguments={
+            'use_sim_time': 'true',
+            'base_height': str(SIM_BASE_HEIGHT),
+        }.items()))
     return actions
 
 
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
-            'world', default_value='ldc25',
+            'world', default_value='house',
             description='Environment name from config/environments.yaml'),
         DeclareLaunchArgument(
             'gui', default_value='true',
@@ -502,16 +407,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'yaw', default_value='', description='Spawn yaw override [rad]'),
         DeclareLaunchArgument(
-            'profile', default_value='real',
-            description='real: sensors, topics, frames and middleware of the real DottorCane; '
-                        'zed: previous simulation with ZED cameras (needed by nav:=map|slam)'),
-        DeclareLaunchArgument(
             'zenoh_router', default_value='false',
-            description='profile:=real: also start a zenoh router (rmw_zenohd); '
+            description='Also start a zenoh router (rmw_zenohd); '
                         'by default one must already run on this host'),
-        DeclareLaunchArgument(
-            'nav', default_value='none',
-            description='Navigation: none, map (Nav2 + AMCL on the world map) '
-                        'or slam (Nav2 + slam_toolbox, no prior map, frontier exploration)'),
         OpaqueFunction(function=launch_setup),
     ])

@@ -32,104 +32,61 @@ if [[ -f "${workspace_dir}/.env" ]]; then
 fi
 
 # GO2_TARGET selects the robot:
-#   real     the real Go2 (DottorCane stack on the Jetson, rmw_zenoh_cpp);
-#   sim      the simulation that looks like the real robot (default:
-#            go2_sim.launch.py profile:=real): same topics, frames, middleware
-#            and DUA Nav2, only the locomotion calibration differs;
-#   sim-zed  the previous simulation (profile:=zed, ZED camera and depth,
-#            nav:=map|slam with named places).
+#   sim      the Gazebo simulation (default, go2_sim.launch.py): same topics, frames,
+#            middleware and Nav2 as the real robot, only the locomotion calibration differs;
+#   real     the real Go2 (DottorCane stack on the Jetson, rmw_zenoh_cpp).
 target="${GO2_TARGET:-sim}"
-case "${target}" in
-  real | sim)
-    # Overrides ros2init's rmw_fastrtps_cpp: the DottorCane nodes only talk over zenoh.
-    export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-    # The real config also in the cudev container, whose AGENTICROS_CONFIG_PATH points to the
-    # sim-zed one; GO2_AGENTICROS_CONFIG overrides it (e.g. config/agenticros.local.json).
-    export AGENTICROS_CONFIG_PATH="${GO2_AGENTICROS_CONFIG:-${workspace_dir}/config/agenticros.real.json}"
-    # Depth from the Livox Mid-360 projected into the front camera (go2_real.launch.py).
-    export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/agent/depth}"
-    # Default camera: the Go2 front camera of config/agenticros.real.json, rectified,
-    # HFOV from the projection matrix of dottorcane_bringup/config/go2_camera.yaml
-    # (the simulated one has the same HFOV). Another camera (the USB camera): set
-    # NEBIUS_CAMERA_TOPIC and NEBIUS_CAMERA_HFOV_DEG to the HFOV that lidar_camera_depth
-    # prints at startup for the same camera.
-    export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-94.7}"
-    export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-/dottorcane/go2_control/imu}"
-    # Estimated pose of the robot in the map frame (EKF + LIO-SAM; in simulation the
-    # stand-in of go2_sim.launch.py profile:=real). Never the Gazebo ground truth.
-    export AGENTICROS_POSE_TOPIC="${AGENTICROS_POSE_TOPIC-/dottorcane/slam/ekf_global/odometry}"
-    export AGENTICROS_DEBUG_POSE_TOPIC="${AGENTICROS_DEBUG_POSE_TOPIC:-}"
-    # Named places of this localization session ("ricorda questo posto come cucina", and every
-    # target reached), in the map frame of EKF + LIO-SAM. That frame restarts with the
-    # DottorCane stack: delete the file then (the simulation, profile:=real, clears it at start).
-    export NEBIUS_SESSION_PLACES="${NEBIUS_SESSION_PLACES:-on}"
-    # Every motion as a Nav2 behavior of the DUA Nav2 (spin, drive_on_heading, backup): closed
-    # loop on the LIO-SAM pose and checked against the costmap, never a cmd_vel from the agent.
-    # Without Nav2 the agent refuses to move; NEBIUS_NAV2_MOTION=off: timed ros2_move_for motions.
-    export NEBIUS_NAV2_MOTION="${NEBIUS_NAV2_MOTION:-on}"
-    export AGENTICROS_PLACES_PATH="${AGENTICROS_PLACES_PATH:-${workspace_dir}/logs/places_session.json}"
-    if [[ "${target}" == "real" ]]; then
-      # Estimate for the standing Go2 (head camera ~4 cm above the base): measure it.
-      export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.36}"
-      # Not calibrated yet: the Unitree sport mode tracks velocity, unlike CHAMP in the
-      # simulation. Measure with "ruota a destra di 90 gradi e avanza di un metro".
-      export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-1.0}"
-      export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-1.0}"
-      # Search turn of exactly 4 quarter turns, back to the start heading (the default 360 + 90
-      # took 5). Below 360 because the searched angle is the IMU-measured one: 4 x 84 deg seen on
-      # the robot; 3 quarter turns never reach 330.
-      export NEBIUS_FULL_TURN_DEG="${NEBIUS_FULL_TURN_DEG:-330}"
-    else
-      # CHAMP stands lower than the sport mode (base ~0.22 m, camera 4 cm above it).
-      export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.26}"
-      # CHAMP calibration of the house simulation (see the sim-zed branch below).
-      export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-0.77}"
-      export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-0.84}"
-    fi
-    exec node \
-      "${agenticros_dir}/packages/agenticros-nebius/dist/index.js" \
-      "$@"
-    ;;
-  sim-zed) ;;
-  *)
-    echo >&2 "Unknown GO2_TARGET '${target}': use real, sim or sim-zed"
-    exit 2
-    ;;
-esac
-
-export AGENTICROS_CONFIG_PATH="${AGENTICROS_CONFIG_PATH:-${workspace_dir}/config/agenticros.json}"
-
-# Named places (rooms) of the simulated world, used when Nav2 runs
-# (go2_sim.launch.py nav:=map). GO2_WORLD must match the launched world.
-places_file="${workspace_dir}/src/go2_sim_worlds/config/places/${GO2_WORLD:-house}.json"
-if [[ -z "${AGENTICROS_PLACES_PATH:-}" && -f "${places_file}" ]]; then
-  export AGENTICROS_PLACES_PATH="${places_file}"
+if [[ "${target}" != "real" && "${target}" != "sim" ]]; then
+  echo >&2 "Unknown GO2_TARGET '${target}': use sim or real"
+  exit 2
 fi
 
-# Perception: by default the vision model localizes targets without YOLO
-# (NEBIUS_PERCEPTION=vlm). NEBIUS_PERCEPTION=yolo adds tiled YOLO for COCO targets,
-# e.g. NEBIUS_PERCEPTION=yolo ./scripts/run_nebius_agent.sh "vai vicino al frigorifero".
-
-# Defaults for the previous Go2 Gazebo simulation (ZED X camera, ~110 deg HFOV).
-export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/slam/zed_x_driver/depth_distances}"
-export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-110}"
-# Measured in the house simulation (headless, real_time_factor 1.0) with
-# AGENTICROS_DEBUG_POSE_TOPIC: with these values -90 deg commands turn 91-93 deg,
-# -45 -> 46, +20 -> 18, and 1 m / 0.5 m advances cover 0.97 / 0.51 m. The former
-# 0.65 / 0.7 turned ~18% and walked ~20% too far, so the dead-reckoned heading
-# drifted ~16 deg per quarter turn. Commands are timed in wall-clock seconds: if
-# the simulation runs slower (real_time_factor < 1), scale both by that factor.
-export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-0.77}"
-export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-0.84}"
-# Heading from the gyroscope of the ZED IMU (ros2_imu_yaw): rotations commanded next to low
-# furniture turn far less than commanded. NEBIUS_IMU_TOPIC= (empty) keeps the commanded turns.
-# In simulation the IMU has no noise model, so the integrated heading is close to ideal.
-export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-/dottorcane/slam/zed_x_driver/imu}"
-
-# Ground-truth motion diagnostics are opt-in: they add ~6 s to every motion.
-# Enable with AGENTICROS_DEBUG_POSE_TOPIC=/gz/dottorcane/pose.
+# Overrides ros2init's rmw_fastrtps_cpp: the DottorCane nodes only talk over zenoh.
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+# GO2_AGENTICROS_CONFIG overrides the config (e.g. config/agenticros.local.json).
+export AGENTICROS_CONFIG_PATH="${GO2_AGENTICROS_CONFIG:-${workspace_dir}/config/agenticros.json}"
+# Depth from the Livox Mid-360 projected into the front camera (go2_real.launch.py).
+export NEBIUS_DEPTH_TOPIC="${NEBIUS_DEPTH_TOPIC-/dottorcane/agent/depth}"
+# Default camera: the Go2 front camera of config/agenticros.json, rectified,
+# HFOV from the projection matrix of dottorcane_bringup/config/go2_camera.yaml
+# (the simulated one has the same HFOV). Another camera (the USB camera): set
+# NEBIUS_CAMERA_TOPIC and NEBIUS_CAMERA_HFOV_DEG to the HFOV that lidar_camera_depth
+# prints at startup for the same camera.
+export NEBIUS_CAMERA_HFOV_DEG="${NEBIUS_CAMERA_HFOV_DEG:-94.7}"
+export NEBIUS_IMU_TOPIC="${NEBIUS_IMU_TOPIC-/dottorcane/go2_control/imu}"
+# Estimated pose of the robot in the map frame (EKF + LIO-SAM; in simulation the
+# stand-in of go2_sim.launch.py). Never the Gazebo ground truth.
+export AGENTICROS_POSE_TOPIC="${AGENTICROS_POSE_TOPIC-/dottorcane/slam/ekf_global/odometry}"
 export AGENTICROS_DEBUG_POSE_TOPIC="${AGENTICROS_DEBUG_POSE_TOPIC:-}"
-
+# Named places of this localization session ("ricorda questo posto come cucina", and every
+# target reached), in the map frame of EKF + LIO-SAM. That frame restarts with the
+# DottorCane stack: delete the file then (the simulation clears it at start).
+export NEBIUS_SESSION_PLACES="${NEBIUS_SESSION_PLACES:-on}"
+# Every motion as a Nav2 behavior (spin, drive_on_heading, backup): closed
+# loop on the LIO-SAM pose and checked against the costmap, never a cmd_vel from the agent.
+# Without Nav2 the agent refuses to move; NEBIUS_NAV2_MOTION=off: timed ros2_move_for motions.
+export NEBIUS_NAV2_MOTION="${NEBIUS_NAV2_MOTION:-on}"
+export AGENTICROS_PLACES_PATH="${AGENTICROS_PLACES_PATH:-${workspace_dir}/logs/places_session.json}"
+if [[ "${target}" == "real" ]]; then
+  # Estimate for the standing Go2 (head camera ~4 cm above the base): measure it.
+  export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.36}"
+  # Not calibrated yet: the Unitree sport mode tracks velocity, unlike CHAMP in the
+  # simulation. Measure with "ruota a destra di 90 gradi e avanza di un metro".
+  export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-1.0}"
+  export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-1.0}"
+  # Search turn of exactly 4 quarter turns, back to the start heading (the default 360 + 90
+  # took 5). Below 360 because the searched angle is the IMU-measured one: 4 x 84 deg seen on
+  # the robot; 3 quarter turns never reach 330.
+  export NEBIUS_FULL_TURN_DEG="${NEBIUS_FULL_TURN_DEG:-330}"
+else
+  # CHAMP stands lower than the sport mode (base ~0.22 m, camera 4 cm above it).
+  export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.26}"
+  # CHAMP calibration of the house simulation, measured headless (real_time_factor 1.0):
+  # -90 deg commanded turns 91-93 deg, 1 m covers 0.97 m. Commands are timed in
+  # wall-clock seconds: with real_time_factor < 1 scale both by that factor.
+  export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-0.77}"
+  export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-0.84}"
+fi
 exec node \
   "${agenticros_dir}/packages/agenticros-nebius/dist/index.js" \
   "$@"

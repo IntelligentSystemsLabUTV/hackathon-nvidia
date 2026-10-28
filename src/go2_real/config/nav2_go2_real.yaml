@@ -1,8 +1,7 @@
 # Nav2 parameters for the real Go2 (DottorCane), without a prior map.
 #
 # Started by `go2_real_nav.launch.py` on a workstation, over zenoh to the robot.
-# Same planner, controller and limits as config/nav2_go2.yaml of go2_sim_worlds
-# (the simulation), with:
+# Same planner, controller and limits as the earlier Nav2 of the Go2 simulation, with:
 #   - no AMCL / map_server: LIO-SAM of the DottorCane stack publishes
 #     map -> map, the EKF the odometry;
 #   - /dottorcane/agent/scan_obstacles: the Mid-360 points 10-70 cm above the
@@ -190,9 +189,12 @@ behavior_server:
     local_footprint_topic: local_costmap/published_footprint
     global_footprint_topic: global_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: [spin, backup, wait]
+    # spin, drive_on_heading and backup: every motion of the AgenticROS agent (NEBIUS_NAV2_MOTION).
+    behavior_plugins: [spin, drive_on_heading, backup, wait]
     spin:
       plugin: nav2_behaviors::Spin
+    drive_on_heading:
+      plugin: nav2_behaviors::DriveOnHeading
     backup:
       plugin: nav2_behaviors::BackUp
     wait:

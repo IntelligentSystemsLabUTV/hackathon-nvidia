@@ -1,6 +1,6 @@
-# ros_gz_bridge topics for go2_sim.launch.py profile:=real: the ROS names and
+# ros_gz_bridge topics for go2_sim.launch.py: the ROS names and
 # frames of the real DottorCane (go2_control, livox_lidar_driver). The sensors
-# are added to the SDF by the launch file (real_profile_sdf).
+# are added to the SDF by the launch file (real_robot_sdf).
 ---
 # Gazebo groundtruth (the pose feeds the EKF stand-in; never read by the agent)
 - ros_topic_name: "/clock"

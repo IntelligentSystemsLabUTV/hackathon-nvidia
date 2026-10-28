@@ -56,7 +56,7 @@
     <atmosphere type="adiabatic"/>
 
     <physics type="ode">
-      <!-- Same as ldc25.world: DART's default "ode" collision detector makes
+      <!-- DART's default "ode" collision detector makes
            the standing robot glide sideways; bullet keeps the feet planted. -->
       <dart>
         <collision_detector>bullet</collision_detector>

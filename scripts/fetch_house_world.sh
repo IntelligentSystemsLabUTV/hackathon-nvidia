@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Download the AWS RoboMaker Small House models (~105 MB) used by
-# `ros2 launch go2_sim_worlds go2_sim.launch.py world:=house`.
+# `ros2 launch go2_sim go2_sim.launch.py world:=house`.
 #
 # Source: pantelis/turtlebot-maze, a Gazebo Harmonic port of
 # aws-robotics/aws-robomaker-small-house-world, pinned to a known commit.

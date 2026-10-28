@@ -40,7 +40,7 @@ PACKAGE = 'go2_real'
 DUA_NAV2 = '/dottorcane/dua_nav2'
 
 # The DUA underlay ships BehaviorTree.CPP 4.9 before the 4.10 of /opt/ros/jazzy
-# that Nav2 is built against (see go2_sim_worlds/launch/go2_nav.launch.py).
+# that Nav2 is built against: /opt/ros/jazzy/lib goes first for the Nav2 processes.
 NAV2_ENV = {'LD_LIBRARY_PATH': ':'.join(
     p for p in ['/opt/ros/jazzy/lib', os.environ.get('LD_LIBRARY_PATH', '')] if p)}
 
@@ -153,7 +153,7 @@ def generate_launch_description():
             description='Frame of the map explore reads (header.frame_id of the costmap)'),
         DeclareLaunchArgument(
             'use_sim_time', default_value='false',
-            description='Simulation clock (go2_sim_worlds profile:=real)'),
+            description='Simulation clock (go2_sim.launch.py)'),
         DeclareLaunchArgument(
             'explore', default_value='true',
             description='Start agenticros_explore (the explore action)'),

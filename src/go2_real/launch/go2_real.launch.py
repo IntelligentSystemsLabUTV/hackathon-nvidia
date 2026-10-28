@@ -84,7 +84,7 @@ def generate_launch_description():
             description='Treat a missing floor ahead (stairs going down) as an obstacle in the scan'),
         DeclareLaunchArgument(
             'use_sim_time', default_value='false',
-            description='Simulation clock (go2_sim_worlds profile:=real)'),
+            description='Simulation clock (go2_sim.launch.py)'),
         Node(
             package='go2_real',
             executable='lidar_camera_depth.py',
