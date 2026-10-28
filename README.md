@@ -74,8 +74,7 @@ flowchart LR
 5. **Motion.** Every motion is a Nav2 goal or behavior (`spin`, `drive_on_heading`, `backup`), never a raw velocity command from the model. The AgenticROS e-stop cancels it at any time. The loop repeats until arrival, failure or the step/time limit.
 
 <p align="center">
-  <img src="assets/readme/contribution.jpg" alt="What our fork adds to AgenticROS" width="49%">
-  <img src="assets/readme/navigation-modes.jpg" alt="SLAM mode with Nav2 and mapless mode" width="49%">
+  <img src="assets/readme/contribution.png" alt="What our fork adds to AgenticROS: Nebius adapter, goal-driven loop, deterministic controller, vision boxes fused with LiDAR, SLAM and mapless modes, Gazebo twin and real Go2 integration" width="100%">
 </p>
 
 ### Two ways to move
@@ -85,6 +84,10 @@ flowchart LR
 | Localization | LiDAR SLAM pose (EKF + LIO-SAM on the robot, its stand-in in simulation) | none: no map, no odometry, no pose estimate |
 | How it reaches the target | Nav2 plans around obstacles, explores frontiers when the target is not in view, remembers places (*"remember this place as kitchen"*, *"go back to the kitchen"*) | the vision model finds the target again at every step, and a reactive drive on the live LiDAR scan avoids obstacles; it explores through the doorways the model chooses |
 | Simulation result | fridge reached at 1.0–1.2 m; saved places reached within ~3 cm | fridge reached at 1.12 m in 3 steps |
+
+<p align="center">
+  <img src="assets/readme/navigation-modes.png" alt="Mode 1, SLAM: localized with Nav2. Mode 2, mapless: no map and no pose estimate" width="100%">
+</p>
 
 ### Safety comes from the code
 
