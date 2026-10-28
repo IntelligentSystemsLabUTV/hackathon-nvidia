@@ -1,0 +1,54 @@
+# ros_gz_bridge topics for go2_sim.launch.py: the ROS names and
+# frames of the real DottorCane (go2_control, livox_lidar_driver). The sensors
+# are added to the SDF by the launch file (real_robot_sdf).
+---
+# Gazebo groundtruth (the pose feeds the EKF stand-in; never read by the agent)
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+- ros_topic_name: "/gz/dottorcane/pose"
+  gz_topic_name: "/model/dottorcane/pose"
+  ros_type_name: "geometry_msgs/msg/PoseStamped"
+  gz_type_name: "gz.msgs.Pose"
+  direction: GZ_TO_ROS
+# Dottorcane controller (CHAMP)
+- ros_topic_name: "/dottorcane/joint_trajectory"
+  gz_topic_name: "/model/dottorcane/joint_trajectory"
+  ros_type_name: "trajectory_msgs/msg/JointTrajectory"
+  gz_type_name: "gz.msgs.JointTrajectory"
+  direction: ROS_TO_GZ
+- ros_topic_name: "/dottorcane/joint_states"
+  gz_topic_name: "/model/dottorcane/joint_state"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+# go2_control: IMU and front camera
+- ros_topic_name: "/dottorcane/go2_control/imu"
+  gz_topic_name: "/dottorcane/go2_control/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+- ros_topic_name: "/dottorcane/go2_control/frontvideo/image_rect_color"
+  gz_topic_name: "/dottorcane/go2_control/frontvideo/image_rect_color"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+- ros_topic_name: "/dottorcane/go2_control/frontvideo/camera_info"
+  gz_topic_name: "/dottorcane/go2_control/frontvideo/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+# Livox Mid-360. The simulated scan has no motion distortion, so the deskewed
+# cloud (scan_deskewer of the DottorCane stack, input of the DUA Nav2) is the same.
+- ros_topic_name: "/dottorcane/sensors/livox_lidar_driver/point_cloud"
+  gz_topic_name: "/dottorcane/sensors/livox_lidar_driver/scan/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+- ros_topic_name: "/dottorcane/sensors/livox_lidar_driver/point_cloud/deskewed"
+  gz_topic_name: "/dottorcane/sensors/livox_lidar_driver/scan/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS

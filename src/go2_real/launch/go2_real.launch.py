@@ -11,14 +11,13 @@ Started here:
     the agent's camera from the Mid-360 points, for ros2_depth_distance and
     ros2_depth_corridor (the robot has no depth camera);
   - lidar_nav_cloud: /dottorcane/agent/nav_cloud, the deskewed Mid-360 cloud reduced
-    to what the dua_nav2 costmaps use (obstacle band, 5 cm voxels, x y z), for Nav2
-    on a workstation over Wi-Fi, only with localization:=map; nav_cloud:=false
-    leaves it out;
+    to what the dua_nav2 costmaps use (obstacle band, 5 cm voxels, x y z), only with
+    localization:=map; nav_cloud:=false leaves it out;
   - reactive_drive: the action /dottorcane/agent/reactive_drive (agenticros_msgs/ReactiveDrive),
     the agent's control loop next to the sensors (it publishes cmd_vel only while a goal runs);
   - lidar_obstacle_scan: /dottorcane/agent/scan_obstacles, a 360 deg LaserScan of
-    the Mid-360 points 10-70 cm above the floor, for Nav2 on a workstation
-    (go2_real_nav.launch.py); obstacle_scan:=false leaves it out.
+    the Mid-360 points 10-70 cm above the floor, for the reactive drive;
+    obstacle_scan:=false leaves it out.
 
 The camera is the one the agent sees (NEBIUS_CAMERA_TOPIC). Its frame must be in
 the TF tree; without a calibrated camera_info pass hfov_deg and camera_frame:
@@ -96,7 +95,7 @@ def generate_launch_description():
                         'map: points compensated in the map frame of the EKF'),
         DeclareLaunchArgument(
             'use_sim_time', default_value='false',
-            description='Simulation clock (go2_sim_worlds profile:=real)'),
+            description='Simulation clock (go2_sim)'),
         Node(
             package='go2_real',
             executable='lidar_camera_depth.py',

@@ -1,0 +1,17 @@
+# Gazebo environments for the Go2 (DottorCane) simulation.
+#
+#   ros2 launch go2_sim go2_sim.launch.py world:=<name>
+#
+# world:          SDF file inside the share directory of `package`.
+# resource_paths: model directories, relative to the assets directory
+#                 (`assets_path` launch argument, default <workspace>/config/gazebo).
+# spawn:          robot pose in the world frame (z is the drop height).
+# setup:          how to get the untracked assets, printed when they are missing.
+
+house:
+  description: AWS RoboMaker Small House (kitchen, living room, bedroom)
+  package: go2_sim
+  world: worlds/house.world
+  resource_paths: [house/models]
+  spawn: {x: 0.0, y: 1.5, z: 0.30, yaw: 0.0}
+  setup: run scripts/fetch_house_world.sh

@@ -42,7 +42,7 @@ House world, robot at the start, the kitchen ~8 m away behind a sofa and a dinin
 
 | Task | Result |
 |---|---|
-| *"Go near the fridge"*, Nemotron-3.5 Lightning + Kimi-K2.6 | 3 steps, one reactive drive of 6.2 m in 15 s with 4 re-aims, arrival at 1.09 m |
+| *"Go near the fridge"*, Nemotron-3.5 Lightning + Kimi-K2.6 | 3 steps, one reactive drive of ~6 m in 15 s with 4 re-aims, arrival at 1.09–1.11 m (two runs) |
 | Same, with only NVIDIA models (`NEBIUS_VISION_MODEL=nvidia/Nemotron-3.5-Super-VL`) | 4 steps, arrival at 1.09 m |
 | Same, starting turned 180° away | 2 search turns, then a reactive drive of 5.9 m, arrival at step 5 |
 | *"Turn right 90 degrees and walk one meter"* | turns 89°, then refuses to walk: a low coffee table 0.39 m ahead |
@@ -82,7 +82,7 @@ Then three terminals, all on `rmw_zenoh_cpp` like the real robot. There is no Na
 zenohd -c /etc/zenoh/rmw/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5
 
 # 2. simulation, with the LiDAR depth, the obstacle scan and the ReactiveDrive action
-RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 launch go2_sim_worlds go2_sim.launch.py world:=house gui:=false
+RMW_IMPLEMENTATION=rmw_zenoh_cpp ros2 launch go2_sim go2_sim.launch.py world:=house gui:=false
 
 # 3. the agent: one request per run, the answer is printed at the end
 ./scripts/run_nebius_agent.sh "go near the fridge"

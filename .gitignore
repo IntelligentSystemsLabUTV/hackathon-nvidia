@@ -6,11 +6,6 @@ log/*
 # Local Gazebo model collection (large external simulation assets)
 /config/gazebo/
 
-# Imported ROS packages used only by the local Gazebo simulation
-/src/ldc25_sim/
-/src/ros_gz_republish/
-/src/velodyne_description/
-/src/zed_description/
 
 # AgenticROS local state and secrets
 .agenticros/
@@ -28,7 +23,6 @@ __pycache__/
 # Uncomment the following to avoid pushing personal configurations
 # .vscode/
 
-docs/index.html
 # Vision evaluation: captured frames, depth and masks (~150 MB, regenerable with capture.py / gt2.py)
 /scripts/vision_eval/data/frames/
 /scripts/vision_eval/data/masks/
@@ -40,3 +34,6 @@ docs/index.html
 /scripts/vision_eval/results/imu_check/
 # Ground truth of the house topology: tracked (evaluation only, never read by the agent)
 !/scripts/vision_eval/house_topology.json
+
+# Local notes for Claude Code
+/CLAUDE.md
