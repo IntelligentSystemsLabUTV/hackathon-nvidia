@@ -13,6 +13,9 @@ Started here:
   - lidar_nav_cloud: /dottorcane/agent/nav_cloud, the deskewed Mid-360 cloud reduced
     to what the dua_nav2 costmaps use (obstacle band, 5 cm voxels, x y z), for Nav2
     on a workstation over Wi-Fi; nav_cloud:=false leaves it out;
+  - lidar_slam_cloud: /dottorcane/agent/slam_cloud, the same reduction of the LIO-SAM
+    local map (map frame: what the lidar saw around the robot this session), for the
+    global costmap of dua_nav2 as a marking-only source; slam_cloud:=false leaves it out;
   - lidar_obstacle_scan: /dottorcane/agent/scan_obstacles, a 360 deg LaserScan of
     the Mid-360 points 10-70 cm above the floor, for Nav2 on a workstation
     (go2_real_nav.launch.py); obstacle_scan:=false leaves it out.
@@ -36,6 +39,8 @@ CAMERA_INFO_TOPIC = '/dottorcane/go2_control/frontvideo/camera_info'
 LIDAR_TOPIC = '/dottorcane/sensors/livox_lidar_driver/point_cloud'
 DESKEWED_TOPIC = LIDAR_TOPIC + '/deskewed'
 NAV_CLOUD_TOPIC = '/dottorcane/agent/nav_cloud'
+SLAM_MAP_TOPIC = '/dottorcane/slam/lio_sam/map_optimization/local_map'
+SLAM_CLOUD_TOPIC = '/dottorcane/agent/slam_cloud'
 DEPTH_TOPIC = '/dottorcane/agent/depth'
 SCAN_TOPIC = '/dottorcane/agent/scan_obstacles'
 
@@ -65,6 +70,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'obstacle_scan', default_value='true',
             description='Also publish the obstacle LaserScan for Nav2'),
+        DeclareLaunchArgument(
+            'slam_cloud', default_value='true',
+            description='Also publish the reduced LIO-SAM local map for the dua_nav2 global costmap'),
         DeclareLaunchArgument(
             'nav_cloud', default_value='true',
             description='Also publish the reduced cloud for the dua_nav2 costmaps'),
@@ -135,5 +143,25 @@ def generate_launch_description():
             remappings=[
                 ('points', DESKEWED_TOPIC),
                 ('cloud', NAV_CLOUD_TOPIC),
+            ]),
+        Node(
+            package='go2_real',
+            executable='lidar_nav_cloud.py',
+            name='lidar_slam_cloud',
+            namespace='dottorcane/agent',
+            output='screen',
+            emulate_tty=True,
+            condition=IfCondition(LaunchConfiguration('slam_cloud')),
+            parameters=[{
+                'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
+                'odom_frame': 'map',
+                # Band of the dua_nav2 costmaps; 10 cm voxels for the 20 cm cells of the global one.
+                'min_height': 0.2,
+                'max_height': 0.6,
+                'voxel': 0.1,
+            }],
+            remappings=[
+                ('points', SLAM_MAP_TOPIC),
+                ('cloud', SLAM_CLOUD_TOPIC),
             ]),
     ])

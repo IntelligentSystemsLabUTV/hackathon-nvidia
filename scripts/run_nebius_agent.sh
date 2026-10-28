@@ -75,6 +75,10 @@ case "${target}" in
       # simulation. Measure with "ruota a destra di 90 gradi e avanza di un metro".
       export NEBIUS_TURN_EFFICIENCY="${NEBIUS_TURN_EFFICIENCY:-1.0}"
       export NEBIUS_FORWARD_EFFICIENCY="${NEBIUS_FORWARD_EFFICIENCY:-1.0}"
+      # Search turn of exactly 4 quarter turns, back to the start heading (the default 360 + 90
+      # took 5). Below 360 because the searched angle is the IMU-measured one: 4 x 84 deg seen on
+      # the robot; 3 quarter turns never reach 330.
+      export NEBIUS_FULL_TURN_DEG="${NEBIUS_FULL_TURN_DEG:-330}"
     else
       # CHAMP stands lower than the sport mode (base ~0.22 m, camera 4 cm above it).
       export NEBIUS_CAMERA_HEIGHT_M="${NEBIUS_CAMERA_HEIGHT_M:-0.26}"
