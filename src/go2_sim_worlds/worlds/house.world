@@ -7,9 +7,8 @@
   (tb_worlds/worlds/house_world.sdf.xacro @ d306a5c).
   The models are not tracked: fetch them with scripts/fetch_house_world.sh.
 
-  Changes from the TurtleBot version: xacro removed, same system plugins and
-  physics as ldc25.world (1 ms step and bullet collision detector, required by
-  the CHAMP gait - see docs/GAZEBO_SETUP.md), and every model is an <include>
+  Changes from the TurtleBot version: xacro removed, 1 ms step and bullet
+  collision detector (required by the CHAMP gait), and every model is an <include>
   with <static>true</static>. The original <model><static/><include/></model>
   wrappers left the nested models dynamic: the furniture meshes kept colliding
   with each other and the simulation ran at ~0.2x real time.
