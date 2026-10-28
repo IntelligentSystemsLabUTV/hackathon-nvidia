@@ -265,11 +265,14 @@ def launch_setup(context):
     pkg_dottorcane_description = get_package_share_directory(
         'dottorcane_description')
     pkg_go2_description = get_package_share_directory('go2_description')
-    pkg_zed_description = get_package_share_directory('zed_description')
-    for resource_root in (
-            os.path.dirname(pkg_dottorcane_description),
-            os.path.dirname(pkg_go2_description),
-            os.path.join(pkg_zed_description, 'models')):
+    resource_roots = [
+        os.path.dirname(pkg_dottorcane_description),
+        os.path.dirname(pkg_go2_description)]
+    if not real:
+        # profile:=zed only: the ZED models come from zed_description, not in this repository.
+        resource_roots.append(
+            os.path.join(get_package_share_directory('zed_description'), 'models'))
+    for resource_root in resource_roots:
         actions.append(
             AppendEnvironmentVariable('GZ_SIM_RESOURCE_PATH', resource_root))
 
