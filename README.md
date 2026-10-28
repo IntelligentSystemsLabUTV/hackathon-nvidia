@@ -77,18 +77,6 @@ flowchart LR
   <img src="assets/readme/contribution.png" alt="What our fork adds to AgenticROS: Nebius adapter, goal-driven loop, deterministic controller, vision boxes fused with LiDAR, SLAM and mapless modes, Gazebo twin and real Go2 integration" width="100%">
 </p>
 
-### What we added to AgenticROS
-
-[AgenticROS `main`](https://github.com/agenticros/agenticros) exposes a ROS 2 robot as tools to chat agents (OpenClaw, Claude and Codex over MCP, Gemini): the agent calls them in a conversation, one tool at a time. Our fork ([`IntelligentSystemsLabUTV/agenticros`](https://github.com/IntelligentSystemsLabUTV/agenticros)) adds 17 commits on top of the 4 September 2026 version of `main`: 37 files, ~5,400 lines ([full diff](https://github.com/IntelligentSystemsLabUTV/agenticros/compare/2aa329ba628f5937d5e15270387fa372330d91a7...main)).
-
-| | AgenticROS `main` | Our fork |
-|---|---|---|
-| Agent | chat adapters: the model drives the tools turn by turn | **`@agenticros/nebius`**, a new package (~3,400 lines + ~750 lines of unit tests): a goal-driven loop where Nemotron on Token Factory picks a semantic intent and a deterministic controller turns it into bounded motion or rejects it |
-| Perception | camera snapshot, depth at a point, YOLOv8n `find_object` | vision-model profiles (Kimi-K2.6, Nemotron-3.5-Super-VL) returning target boxes, doorways and a scene description; depth inside the box that detects occluding objects; tiled YOLO for small or far targets |
-| Robot tools | topics, services, actions, parameters, e-stop, velocity limits, saved places, follow-me | six new MCP tools: `ros2_move_for` (bounded motion, stopped by the e-stop), `ros2_depth_corridor` (3D free space ahead), `ros2_imu_yaw`, `ros2_robot_pose`, `ros2_navigate_to_pose`, `ros2_list_actions` |
-| Core | Zenoh, rosbridge, local DDS and WebRTC transports | action goals with feedback, timeout and cancellation on the local transport (Nav2 goals and behaviors stop on `ros2_estop`); places saved per localization session |
-| Exploration | frontier exploration node | fixes for a tilted LiDAR: a minimum frontier distance, and recent goals kept across requests so an unreachable frontier isn't picked again |
-
 ### Two ways to move
 
 | | **SLAM + Nav2** (this branch, `master`) | **Mapless** (branch [`mapless`](../../tree/mapless)) |
@@ -264,10 +252,22 @@ The [`mapless`](../../tree/mapless) branch drops every pose estimate: no SLAM, o
 
 ## Built during the hackathon
 
-This repository was created on 23 September 2026, after the submission period opened. The AgenticROS runtime existed before; everything listed here was written for the hackathon, on top of it:
+This repository was created on 23 September 2026, after the submission period opened. The AgenticROS runtime existed before; everything listed here was written for the hackathon, on top of it.
 
-- **`@agenticros/nebius`**, a new package: the goal-driven agent, the Nemotron decision loop with tool calls, the deterministic controller (unit-tested), the vision-model profiles and the model fallback chain;
-- **new MCP tools** in AgenticROS: `ros2_depth_corridor` (3D free space in front of the body), `ros2_imu_yaw`, `ros2_robot_pose`, `ros2_navigate_to_pose`, `ros2_list_actions`, `ros2_move_for` (bounded motions, interruptible by the e-stop); plus depth in the target box robust to occlusions, tiled YOLO detection, places saved per localization session, and frontier-exploration fixes;
+### What we added to AgenticROS
+
+[AgenticROS `main`](https://github.com/agenticros/agenticros) exposes a ROS 2 robot as tools to chat agents (OpenClaw, Claude and Codex over MCP, Gemini): the agent calls them in a conversation, one tool at a time. Our fork ([`IntelligentSystemsLabUTV/agenticros`](https://github.com/IntelligentSystemsLabUTV/agenticros)) adds 17 commits on top of the 4 September 2026 version of `main`: 37 files, ~5,400 lines ([full diff](https://github.com/IntelligentSystemsLabUTV/agenticros/compare/2aa329ba628f5937d5e15270387fa372330d91a7...main)).
+
+| | AgenticROS `main` | Our fork |
+|---|---|---|
+| Agent | chat adapters: the model drives the tools turn by turn | **`@agenticros/nebius`**, a new package (~3,400 lines + ~750 lines of unit tests): a goal-driven loop where Nemotron on Token Factory picks a semantic intent and a deterministic controller turns it into bounded motion or rejects it; a fallback chain for the reasoning and vision models |
+| Perception | camera snapshot, depth at a point, YOLOv8n `find_object` | vision-model profiles (Kimi-K2.6, Nemotron-3.5-Super-VL) returning target boxes, doorways and a scene description; depth inside the box that detects occluding objects; tiled YOLO for small or far targets |
+| Robot tools | topics, services, actions, parameters, e-stop, velocity limits, saved places, follow-me | six new MCP tools: `ros2_move_for` (bounded motion, stopped by the e-stop), `ros2_depth_corridor` (3D free space ahead), `ros2_imu_yaw`, `ros2_robot_pose`, `ros2_navigate_to_pose`, `ros2_list_actions` |
+| Core | Zenoh, rosbridge, local DDS and WebRTC transports | action goals with feedback, timeout and cancellation on the local transport (Nav2 goals and behaviors stop on `ros2_estop`); places saved per localization session |
+| Exploration | frontier exploration node | fixes for a tilted LiDAR: a minimum frontier distance, and recent goals kept across requests so an unreachable frontier isn't picked again |
+
+### Around AgenticROS
+
 - **the robot integration** (`go2_real`): LiDAR-to-camera depth for a robot without a depth camera, obstacle scan, a costmap cloud light enough for Wi-Fi, and Nav2 running on a workstation over zenoh without a prior map;
 - **a simulation that matches the robot** (`go2_sim`): same sensors, topics, frames and middleware, so the same commands run in Gazebo and on the Go2;
 - **the mapless mode** (branch `mapless`): reactive drive and semantic waypoints;
