@@ -83,7 +83,7 @@ flowchart LR
 |---|---|---|
 | Localization | LiDAR SLAM pose (EKF + LIO-SAM on the robot, its stand-in in simulation) | none: no map, no odometry, no pose estimate |
 | How it reaches the target | Nav2 plans around obstacles, explores frontiers when the target is not in view, remembers places (*"remember this place as kitchen"*, *"go back to the kitchen"*) | the vision model finds the target again at every step, and a reactive drive on the live LiDAR scan avoids obstacles; it explores through the doorways the model chooses |
-| Simulation result | fridge reached at 1.0–1.2 m; saved places reached within ~3 cm | fridge reached at 1.09 m in 3 steps |
+| Simulation result | fridge reached at 1.0–1.2 m; saved places reached within ~3 cm | fridge reached at 1.12 m in 3 steps |
 
 <p align="center">
   <img src="assets/readme/navigation-modes.png" alt="Mode 1, SLAM: localized with Nav2. Mode 2, mapless: no map and no pose estimate" width="100%">
@@ -107,7 +107,7 @@ Every model call goes through Token Factory's OpenAI-compatible API ([`packages/
 | Goal parsing and every step decision (tool calls) | `nvidia/Nemotron-3_5-Lightning` | ~0.3–0.4 s per decision when the endpoint is healthy |
 | Fallback for decisions and parsing | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | `enable_thinking: false`, ~0.8 s; takes over after an error or a 10 s timeout, for the next 5 calls |
 | Vision: target box, doorways, scene | `moonshotai/Kimi-K2.6` (default) | boxes as 0–1 fractions in ~1 s; `chat_template_kwargs: {thinking: false}` |
-| Vision fallback, or the only vision model with `NEBIUS_VISION_MODEL` | `nvidia/Nemotron-3.5-Super-VL` | boxes on a 0–1000 grid, `enable_thinking: false`: ~1 s instead of 2 s, same boxes |
+| Vision fallback; default vision model on the `mapless` branch | `nvidia/Nemotron-3.5-Super-VL` | boxes on a 0–1000 grid, `enable_thinking: false`: ~1 s instead of 2 s, same boxes |
 
 To use only NVIDIA models, set `NEBIUS_VISION_MODEL=nvidia/Nemotron-3.5-Super-VL`. Each vision model has a profile in [`vision.ts`](tools/agenticros/packages/agenticros-nebius/src/vision.ts) with its grounding format, thinking switch and JSON-schema support.
 
@@ -246,7 +246,7 @@ GO2_TARGET=real ./scripts/run_nebius_agent.sh "find a fire hydrant"
 <details>
 <summary><b>Mapless mode</b></summary>
 
-The [`mapless`](../../tree/mapless) branch drops every pose estimate: no SLAM, odometry, IMU integration or Nav2. The vision model (Kimi-K2.6 or Nemotron-3.5-Super-VL) finds the target again at every step, and a `ReactiveDrive` ROS 2 action on the robot drives toward it at 20 Hz, avoiding obstacles on the instantaneous LiDAR scan while the agent re-aims. When the target is not in the room, the model sees the search turn as one mosaic, picks the doorway to explore and finds it again frame by frame from its own description (a *semantic waypoint*). The branch has its own README with the commands to run it.
+The [`mapless`](../../tree/mapless) branch drops every pose estimate: no SLAM, odometry, IMU integration or Nav2. The vision model (`nvidia/Nemotron-3.5-Super-VL` recommended) finds the target again at every step, and the `ros2_drive_toward` tool drives toward it for at most 3 s, avoiding obstacles on the instantaneous LiDAR scan. When the target is not in the room, the model sees the search turn as one mosaic, picks the doorway to explore and finds it again frame by frame from its own description (a *semantic waypoint*). The branch has its own README with the commands to run it.
 
 </details>
 
