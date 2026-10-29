@@ -19,14 +19,14 @@
 # limitations under the License.
 
 services:
-  hackathon-nvidia-x86-dev:
+  hackathon-physical-ai-x86-dev:
     build:
       context: ../
       network: host
       dockerfile: Dockerfile
       args:
         - USER_UID=1000
-    image: hackathon-nvidia:x86-dev
+    image: hackathon-physical-ai:x86-dev
     environment:
       TERM: xterm-256color
       DISPLAY:

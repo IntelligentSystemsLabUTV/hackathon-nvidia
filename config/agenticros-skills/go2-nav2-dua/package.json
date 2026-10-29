@@ -1,5 +1,5 @@
 {
-  "name": "@hackathon-nvidia/go2-nav2-dua",
+  "name": "@hackathon-physical-ai/go2-nav2-dua",
   "version": "0.1.0",
   "private": true,
   "description": "Nav2 of the DottorCane (dua_nav2: dottorcane.launch.py, namespace /dottorcane/dua_nav2), on the real Go2 and in the simulation (go2_sim.launch.py). No code: declared for AgenticROS, which sends the goals and cancels them on ros2_estop.",

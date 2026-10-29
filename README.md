@@ -151,16 +151,16 @@ The workspace follows the layout of [DUA](https://github.com/dotX-Automation/dua
 
 **You need** a Linux host with an NVIDIA GPU, Docker with the NVIDIA container runtime, and a [Nebius Token Factory](https://tokenfactory.nebius.com/) API key.
 
-Without an NVIDIA GPU, use `docker/container-x86-dev` instead of `docker/container-x86-cudev` (container `devcontainer-hackathon-nvidia-x86-dev-1`): same tools, with Gazebo rendering the cameras in software, so the simulation runs slower.
+Without an NVIDIA GPU, use `docker/container-x86-dev` instead of `docker/container-x86-cudev` (container `devcontainer-hackathon-physical-ai-x86-dev-1`): same tools, with Gazebo rendering the cameras in software, so the simulation runs slower.
 
 ```bash
 # on the host
-git clone --recurse-submodules https://github.com/IntelligentSystemsLabUTV/hackathon-nvidia.git
-cd hackathon-nvidia
+git clone --recurse-submodules https://github.com/IntelligentSystemsLabUTV/hackathon-physical-ai.git
+cd hackathon-physical-ai
 cp .env.example .env                       # then set NEBIUS_API_KEY=... in .env
 xhost +local:                              # only if you want the Gazebo GUI
 cd docker/container-x86-cudev/.devcontainer && DISPLAY=$DISPLAY docker compose up -d
-docker exec -it devcontainer-hackathon-nvidia-x86-cudev-1 zsh
+docker exec -it devcontainer-hackathon-physical-ai-x86-cudev-1 zsh
 ```
 
 The container mounts the repository at `~/workspace`. Build it once:
@@ -173,7 +173,7 @@ source install/setup.zsh
 ./scripts/fetch_house_world.sh             # downloads the house models (AWS RoboMaker Small House)
 ```
 
-Then start four terminals (`docker exec -it devcontainer-hackathon-nvidia-x86-cudev-1 zsh`, then `cd ~/workspace` in each). As on the real robot, everything runs on `rmw_zenoh_cpp`:
+Then start four terminals (`docker exec -it devcontainer-hackathon-physical-ai-x86-cudev-1 zsh`, then `cd ~/workspace` in each). As on the real robot, everything runs on `rmw_zenoh_cpp`:
 
 ```bash
 # 1. zenoh router

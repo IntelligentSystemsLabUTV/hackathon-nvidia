@@ -1,12 +1,12 @@
 {
-  "name": "hackathon-nvidia-x86-cudev",
+  "name": "hackathon-physical-ai-x86-cudev",
   "dockerComposeFile": [
     "docker-compose.yaml"
   ],
   // Only start this service
-  "service": "hackathon-nvidia-x86-cudev",
+  "service": "hackathon-physical-ai-x86-cudev",
   "runServices": [
-    "hackathon-nvidia-x86-cudev"
+    "hackathon-physical-ai-x86-cudev"
   ],
   // Stop container if VS Code is shut down
   "shutdownAction": "stopCompose",

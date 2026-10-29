@@ -1,12 +1,12 @@
 {
-  "name": "hackathon-nvidia-jetson6",
+  "name": "hackathon-physical-ai-jetson6",
   "dockerComposeFile": [
     "docker-compose.yaml"
   ],
   // Only start this service
-  "service": "hackathon-nvidia-jetson6",
+  "service": "hackathon-physical-ai-jetson6",
   "runServices": [
-    "hackathon-nvidia-jetson6"
+    "hackathon-physical-ai-jetson6"
   ],
   // Stop container if VS Code is shut down
   "shutdownAction": "stopCompose",

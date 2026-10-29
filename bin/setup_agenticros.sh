@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Prepare AgenticROS inside the hackathon-nvidia DUA container.
+# Prepare AgenticROS inside the hackathon-physical-ai DUA container.
 # The ROS packages are exposed through src/agenticros and built in the main
 # workspace. A compatibility link lets upstream AgenticROS scripts find that
 # same install space at ros2_ws/install.

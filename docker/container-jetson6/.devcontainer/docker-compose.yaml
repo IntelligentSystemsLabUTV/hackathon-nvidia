@@ -19,14 +19,14 @@
 # limitations under the License.
 
 services:
-  hackathon-nvidia-jetson6:
+  hackathon-physical-ai-jetson6:
     build:
       context: ../
       network: host
       dockerfile: Dockerfile
       args:
         - USER_UID=1000
-    image: hackathon-nvidia:jetson6
+    image: hackathon-physical-ai:jetson6
     environment:
       TERM: xterm-256color
       DISPLAY:
