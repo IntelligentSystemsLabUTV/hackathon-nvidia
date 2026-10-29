@@ -21,13 +21,13 @@
 </p>
 
 <p align="center">
-  <a href="https://youtu.be/REPLACE_WITH_VIDEO_ID"><img src="assets/readme/video-thumbnail.jpg" alt="Demo video (3 minutes)" width="720"></a><br>
-  <sub>▶ <a href="https://youtu.be/REPLACE_WITH_VIDEO_ID">Watch the demo video</a> (under 3 minutes, more than 1 minute on the real robot)</sub>
+  <a href="https://youtu.be/LaxFAptkiSE"><img src="assets/readme/video-thumbnail.jpg" alt="Demo video" width="720"></a><br>
+  <sub>▶ <a href="https://youtu.be/LaxFAptkiSE">Watch the demo video</a> (under 3 minutes, one minute of it on the real robot)</sub>
 </p>
 
 <p align="center">
   <img src="assets/readme/real-robot.gif" alt="The real Unitree Go2 asked to find a fire hydrant: it scans the room, goes through the door with Nav2 and stops in front of the hydrant at the end of the corridor" width="800"><br>
-  <sub>The real Go2, asked to <i>“find a fire hydrant”</i>: it scans the room and doesn't find it, crosses the door with Nav2, sees the hydrant at the end of the corridor and stops in front of it (2.5× speed).</sub>
+  <sub>The real Go2, asked to <i>“find a fire hydrant”</i>: it scans the room and doesn't find it, crosses the door with Nav2, sees the hydrant at the end of the corridor and stops in front of it (sped up).</sub>
 </p>
 
 ## The problem
@@ -83,7 +83,6 @@ flowchart LR
 |---|---|---|
 | Localization | LiDAR SLAM pose (EKF + LIO-SAM on the robot, its stand-in in simulation) | none: no map, no odometry, no pose estimate |
 | How it reaches the target | Nav2 plans around obstacles, explores frontiers when the target is not in view, remembers places (*"remember this place as kitchen"*, *"go back to the kitchen"*) | the vision model finds the target again at every step, and a reactive drive on the live LiDAR scan avoids obstacles; it explores through the doorways the model chooses |
-| Simulation result | fridge reached at 1.0–1.2 m; saved places reached within ~3 cm | fridge reached at 1.12 m in 3 steps |
 
 <p align="center">
   <img src="assets/readme/navigation-modes.png" alt="Mode 1, SLAM: localized with Nav2. Mode 2, mapless: no map and no pose estimate" width="100%">
@@ -104,14 +103,14 @@ Every model call goes through Token Factory's OpenAI-compatible API ([`packages/
 
 | Role | Model | Notes |
 |---|---|---|
-| Goal parsing and every step decision (tool calls) | `nvidia/Nemotron-3_5-Lightning` | ~0.3–0.4 s per decision when the endpoint is healthy |
-| Fallback for decisions and parsing | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | `enable_thinking: false`, ~0.8 s; takes over after an error or a 10 s timeout, for the next 5 calls |
-| Vision: target box, doorways, scene | `moonshotai/Kimi-K2.6` (default) | boxes as 0–1 fractions in ~1 s; `chat_template_kwargs: {thinking: false}` |
-| Vision fallback; default vision model on the `mapless` branch | `nvidia/Nemotron-3.5-Super-VL` | boxes on a 0–1000 grid, `enable_thinking: false`: ~1 s instead of 2 s, same boxes |
+| Goal parsing and every step decision (tool calls) | `nvidia/Nemotron-3_5-Lightning` | sub-second decisions when the endpoint is healthy |
+| Fallback for decisions and parsing | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | `enable_thinking: false`; takes over for the next few calls after an error or a timeout |
+| Vision: target box, doorways, scene | `moonshotai/Kimi-K2.6` (default) | boxes as 0–1 fractions; `chat_template_kwargs: {thinking: false}` |
+| Vision fallback; default vision model on the `mapless` branch | `nvidia/Nemotron-3.5-Super-VL` | boxes on a 0–1000 grid; `enable_thinking: false` halves the latency with the same boxes |
 
 To use only NVIDIA models, set `NEBIUS_VISION_MODEL=nvidia/Nemotron-3.5-Super-VL`. Each vision model has a profile in [`vision.ts`](tools/agenticros/packages/agenticros-nebius/src/vision.ts) with its grounding format, thinking switch and JSON-schema support.
 
-**How Token Factory helped.** One endpoint and one API key serve both reasoning and vision, so trying a model is a matter of changing one variable. Before choosing, we ran about ten vision models (Kimi-K2.6, Nemotron-3.5-Super-VL, MiniCPM-V-4.5, DeepSeek, Qwen, GLM and others) on the same simulation frames with ground truth. On 7 frames both Nemotron-3.5-Super-VL and Kimi-K2.6 found every target, with median bearing errors of 1.1° and 2.0° at ~1.2 s per frame. The ~1 s vision latency and sub-second decisions keep one perception–decision–motion step at a few seconds, fast enough for a closed loop on a walking robot. `response_format: json_schema` gives the agent structured replies that it can validate.
+**How Token Factory helped.** One endpoint and one API key serve both reasoning and vision, so trying a model is a matter of changing one variable. Before choosing, we ran about ten vision models (Kimi-K2.6, Nemotron-3.5-Super-VL, MiniCPM-V-4.5, DeepSeek, Qwen, GLM and others) on the same simulation frames with ground truth. Nemotron-3.5-Super-VL and Kimi-K2.6 found every target with precise boxes, in about a second per frame. Fast vision and sub-second decisions keep each perception–decision–motion step to a few seconds, fast enough for a closed loop on a walking robot. `response_format: json_schema` gives the agent structured replies that it can validate.
 
 ## Results
 
@@ -119,18 +118,19 @@ Measured in the Gazebo simulation, which has the same sensors, topics, frames an
 
 <p align="center">
   <img src="assets/readme/simulation.gif" alt="Simulation: asked to go to the refrigerator, the Go2 spots it 8 m away, Nav2 drives most of the way, then it re-aligns and stops in front of it" width="800"><br>
-  <sub>Simulation, <i>“go to the refrigerator”</i>: the target is spotted 8 m away, Nav2 covers most of the distance, then the robot looks again, re-aligns and stops (2× speed).</sub>
+  <sub>Simulation, <i>“go to the refrigerator”</i>: the target is spotted 8 m away, Nav2 covers most of the distance, then the robot looks again, re-aligns and stops (sped up).</sub>
 </p>
 
 | Task | Result |
 |---|---|
-| *"Go to the refrigerator"*, 8 m away behind a sofa and a dining table | 5–8 steps, one Nav2 goal of ~7 m, arrival at 1.0–1.2 m |
-| *"Go to the chair"* (Nemotron decisions in 0.3–0.4 s) | 8 steps, arrival at 0.81 m |
-| *"Go to the bed"*, in another room, not visible from the start | 16–18 steps through frontier exploration, arrival at 0.5–1.1 m |
-| *"Remember this place as kitchen"* … *"go back to the kitchen"* | Nav2 goals of 7–27 s, arrival ~3 cm from the saved pose |
-| *"Turn right 90 degrees and walk one meter"* | 88°, 0.95 m |
-| `ros2_estop` during a Nav2 goal | goal cancelled in 12 ms |
-| *"Go to the refrigerator"* following the quick start below (Nav2 of this repository, deterministic policy) | 10 steps, arrival at 1.03 m |
+| *"Go to the refrigerator"*, 8 m away behind a sofa and a dining table | a few steps and one long Nav2 goal; stops about 1 m from it |
+| *"Go to the chair"* | reached, stops in front of it |
+| *"Go to the bed"*, in another room, not visible from the start | found through frontier exploration, then reached |
+| *"Remember this place as kitchen"* … *"go back to the kitchen"* | Nav2 brings it back to the saved pose within a few centimetres |
+| *"Turn right 90 degrees and walk one meter"* | executed within a few degrees and centimetres |
+| `ros2_estop` during a Nav2 goal | goal cancelled at once |
+| *"Go to the refrigerator"* following the quick start below (Nav2 of this repository, deterministic policy) | reached |
+| *"Go to the refrigerator"* in mapless mode (branch `mapless`) | reached with no map and no pose estimate |
 | Real Go2, *"find a fire hydrant"* (in the video) | search turn, Nav2 through the door, hydrant spotted at the end of the corridor, stop in front of it |
 
 ## Repository layout
@@ -258,11 +258,11 @@ This repository was created on 23 September 2026, after the submission period op
 
 ### What we added to AgenticROS
 
-[AgenticROS `main`](https://github.com/agenticros/agenticros) exposes a ROS 2 robot as tools to chat agents (OpenClaw, Claude and Codex over MCP, Gemini): the agent calls them in a conversation, one tool at a time. Our fork ([`IntelligentSystemsLabUTV/agenticros`](https://github.com/IntelligentSystemsLabUTV/agenticros)) adds 17 commits on top of the 4 September 2026 version of `main`: 37 files, ~5,400 lines ([full diff](https://github.com/IntelligentSystemsLabUTV/agenticros/compare/2aa329ba628f5937d5e15270387fa372330d91a7...main)).
+[AgenticROS `main`](https://github.com/agenticros/agenticros) exposes a ROS 2 robot as tools to chat agents (OpenClaw, Claude and Codex over MCP, Gemini): the agent calls them in a conversation, one tool at a time. Our fork ([`IntelligentSystemsLabUTV/agenticros`](https://github.com/IntelligentSystemsLabUTV/agenticros)) is built on the 4 September 2026 version of `main` ([full diff](https://github.com/IntelligentSystemsLabUTV/agenticros/compare/2aa329ba628f5937d5e15270387fa372330d91a7...main)).
 
 | | AgenticROS `main` | Our fork |
 |---|---|---|
-| Agent | chat adapters: the model drives the tools turn by turn | **`@agenticros/nebius`**, a new package (~3,400 lines + ~750 lines of unit tests): a goal-driven loop where Nemotron on Token Factory picks a semantic intent and a deterministic controller turns it into bounded motion or rejects it; a fallback chain for the reasoning and vision models |
+| Agent | chat adapters: the model drives the tools turn by turn | **`@agenticros/nebius`**, a new package, with unit tests: a goal-driven loop where Nemotron on Token Factory picks a semantic intent and a deterministic controller turns it into bounded motion or rejects it; a fallback chain for the reasoning and vision models |
 | Perception | camera snapshot, depth at a point, YOLOv8n `find_object` | vision-model profiles (Kimi-K2.6, Nemotron-3.5-Super-VL) returning target boxes, doorways and a scene description; depth inside the box that detects occluding objects; tiled YOLO for small or far targets |
 | Robot tools | topics, services, actions, parameters, e-stop, velocity limits, saved places, follow-me | six new MCP tools: `ros2_move_for` (bounded motion, stopped by the e-stop), `ros2_depth_corridor` (3D free space ahead), `ros2_imu_yaw`, `ros2_robot_pose`, `ros2_navigate_to_pose`, `ros2_list_actions` |
 | Core | Zenoh, rosbridge, local DDS and WebRTC transports | action goals with feedback, timeout and cancellation on the local transport (Nav2 goals and behaviors stop on `ros2_estop`); places saved per localization session |
@@ -277,11 +277,11 @@ This repository was created on 23 September 2026, after the submission period op
 
 ## Feedback on Nebius Token Factory and the NVIDIA models
 
-- **Nemotron-3.5-Super-VL** returns boxes on a 0–1000 grid even when asked for 0–1 fractions. It reasons by default (~270 tokens per frame), and `enable_thinking: false` halves the latency with the same boxes. Both facts deserve a line on the model card.
-- **Nemotron-3_5-Lightning** timed out for hours on 21–22 October 2026, even on 8-token requests (30–90 s), while the vision models answered in ~1 s. A status page or per-model latency figures would help to choose a fallback; we added one (Nemotron Nano) for that reason.
-- **Nemotron Nano** with reasoning on returned no content within 60 tokens: short structured replies need `enable_thinking: false`.
+- **Nemotron-3.5-Super-VL** returns boxes on a 0–1000 grid even when asked for 0–1 fractions. It reasons by default, and `enable_thinking: false` halves the latency with the same boxes. Both facts deserve a line on the model card.
+- **Nemotron-3_5-Lightning** timed out for hours on 21–22 October 2026, even on minimal requests, while the vision models kept answering. A status page or per-model latency figures would help to choose a fallback; we added one (Nemotron Nano) for that reason.
+- **Nemotron Nano** with reasoning on spent the whole token budget of a short reply and returned no content: short structured replies need `enable_thinking: false`.
 - **Kimi-K2.6** thinks by default and needs `chat_template_kwargs: {thinking: false}` (`reasoning_effort: "none"` has no effect). Asked for a 0–1000 grid, it sometimes returned y in pixels. 0–1 fractions are reliable.
-- What worked well: one OpenAI-compatible endpoint for all the models, `response_format: json_schema` honoured by the vision models, and ~1 s vision latency, which makes a closed loop on a walking robot practical.
+- What worked well: one OpenAI-compatible endpoint for all the models, `response_format: json_schema` honoured by the vision models, and fast vision, which makes a closed loop on a walking robot practical.
 
 ## Team and acknowledgements
 
