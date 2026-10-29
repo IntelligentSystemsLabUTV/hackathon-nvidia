@@ -38,35 +38,6 @@ We built that on top of [AgenticROS](https://github.com/agenticros/agenticros), 
 
 ## How it works
 
-```mermaid
-flowchart LR
-    U(["“go to the refrigerator”"]) --> P
-
-    subgraph TF["Nebius Token Factory"]
-        P["Nemotron-3.5 Lightning<br/>parses the goal"]
-        D["Nemotron-3.5 Lightning<br/>picks the next intent<br/>(tool call)"]
-        V["Vision model<br/>Kimi-K2.6 / Nemotron-3.5-Super-VL<br/>target box, doorways, scene"]
-    end
-
-    subgraph AG["Nebius agent (AgenticROS fork)"]
-        O["Observation:<br/>bearing, distance,<br/>free space, doorways"]
-        C["Deterministic controller<br/>bounds · rejects · arrival checks"]
-    end
-
-    subgraph R["Robot: Go2 or Gazebo · ROS 2 Jazzy · zenoh"]
-        CAM["front camera"]
-        LID["Livox Mid-360 LiDAR<br/>→ depth in the image,<br/>obstacle scan"]
-        NAV["Nav2<br/>navigate_to_pose · spin ·<br/>drive_on_heading · explore"]
-    end
-
-    P --> O
-    CAM -- "MCP: ros2_camera_snapshot" --> V --> O
-    LID -- "MCP: ros2_depth_distance / corridor" --> O
-    O --> D --> C
-    C -- "MCP: ros2_navigate_to_pose, behaviors, ros2_estop" --> NAV
-    NAV -. "next observation" .-> CAM
-```
-
 1. **Goal.** Nemotron turns the request into a task: approach an object, describe the scene, move, go back to a saved place, or stop.
 2. **Perception.** At every step the agent takes a camera frame through an AgenticROS MCP tool. The vision model on Token Factory returns the target's bounding box, the open doorways and a short description of the scene. LiDAR points projected into the image give the distance inside the box and the free space ahead. If the depth doesn't fit the box (something closer is covering the target), the distance counts as unknown and the robot can't declare arrival.
 3. **Decision.** Nemotron picks a semantic intent with a tool call: `search`, `face_target`, `approach_target`, `explore` or `finish`.
